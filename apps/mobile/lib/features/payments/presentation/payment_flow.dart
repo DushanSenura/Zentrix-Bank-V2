@@ -9,6 +9,7 @@ import '../../../core/utils/money.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_controller.dart';
+import '../../support/presentation/support_pages.dart' show ReceiptActions;
 import '../data/payments_repository.dart';
 
 String two(int n) => n.toString().padLeft(2, '0');
@@ -272,7 +273,7 @@ class ReceiptPage extends ConsumerWidget {
       body: ZxBackdrop(child: SafeArea(child: f.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(e is ApiFailure ? e.message : 'Something went wrong.'), TextButton(onPressed: () => ref.invalidate(_paymentProvider(id)), child: const Text('Retry'))])),
-        data: (p) => SingleChildScrollView(padding: const EdgeInsets.all(ZxSpace.md), child: ReceiptCard(p)),
+        data: (p) => SingleChildScrollView(padding: const EdgeInsets.all(ZxSpace.md), child: Column(children: [ReceiptCard(p), if (p.status == 'POSTED') ReceiptActions(paymentId: p.id)])),
       ))),
     );
   }

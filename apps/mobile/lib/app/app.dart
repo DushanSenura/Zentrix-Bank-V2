@@ -14,6 +14,7 @@ import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
 import '../features/services/presentation/cards_pages.dart';
+import '../features/support/presentation/support_pages.dart';
 import '../features/services/presentation/deposits_loans_pages.dart';
 import '../features/services/presentation/savings_pages.dart';
 import '../features/settings/settings_controller.dart';
@@ -69,6 +70,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: 'my-qr', builder: (_, _) => const MyQrPage()),
         GoRoute(path: 'scan', builder: (_, _) => const ScanPage()),
         GoRoute(path: 'scheduled', builder: (_, _) => const ScheduledPage()),
+      ]),
+      GoRoute(path: '/history', builder: (_, _) => const HistoryPage()),
+      GoRoute(path: '/statements', builder: (_, _) => const StatementsPage()),
+      GoRoute(path: '/support', builder: (_, _) => const SupportHubPage(), routes: [
+        GoRoute(path: 'tickets', builder: (_, _) => const TicketsPage(), routes: [
+          GoRoute(path: 'new', builder: (_, _) => const NewTicketPage()),
+          GoRoute(path: ':id', builder: (_, st) => TicketDetailPage(id: st.pathParameters['id']!)),
+        ]),
+        GoRoute(path: 'disputes', builder: (_, _) => const DisputesPage()),
+        GoRoute(path: 'report/:paymentId', builder: (_, st) => ReportProblemPage(paymentId: st.pathParameters['paymentId']!)),
+        GoRoute(path: 'branches', builder: (_, _) => const BranchesPage()),
+        GoRoute(path: 'appointments', builder: (_, _) => const AppointmentsPage()),
       ]),
       GoRoute(path: '/receipts/:id', builder: (_, st) => ReceiptPage(id: st.pathParameters['id']!)),
       GoRoute(path: '/notifications', builder: (_, _) => const NotificationsPage()),

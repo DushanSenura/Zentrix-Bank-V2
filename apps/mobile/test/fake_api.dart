@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zentrix_bank/app/app.dart';
 import 'package:zentrix_bank/core/security/biometric_service.dart';
 import 'package:zentrix_bank/core/storage/prefs_store.dart';
 import 'package:zentrix_bank/features/authentication/data/auth_repository.dart';
+import 'package:zentrix_bank/features/support/data/file_sharer.dart';
+import 'package:zentrix_bank/features/support/data/support_repository.dart';
 
 typedef Handler = Map<String, dynamic> Function(String path, Map<String, dynamic>? query, Map<String, dynamic>? body);
 
@@ -53,6 +57,12 @@ class FakeApi implements AuthRepository {
   }
 
   @override
+  Future<DownloadedFile> getFile(String path, {Map<String, dynamic>? query}) async {
+    requests.add(Req('GET', path, query, null, null));
+    return DownloadedFile(Uint8List.fromList([0x25, 0x50, 0x44, 0x46]), 'doc.pdf', 'application/pdf');
+  }
+
+  @override
   Future<void> logout() async {}
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError('${i.memberName}');
@@ -70,8 +80,15 @@ Map<String, dynamic> acct(String id, String name, int bal, {String status = 'ACT
       'interestRateBps': 350, 'currency': 'LKR', 'status': status, 'openedAt': '2026-01-01T00:00:00Z', 'balanceMinor': bal,
     };
 
-Widget appWith(FakeApi api) => ProviderScope(
+class RecordingSharer implements FileSharer {
+  final shared = <DownloadedFile>[];
+  @override
+  Future<void> share(DownloadedFile f) async => shared.add(f);
+}
+
+Widget appWith(FakeApi api, {FileSharer? sharer}) => ProviderScope(
       overrides: [
+        if (sharer != null) fileSharerProvider.overrideWithValue(sharer),
         authRepositoryProvider.overrideWithValue(api),
         prefsStoreProvider.overrideWithValue(MemoryPrefsStore()..data['onboarded'] = '1'),
         biometricServiceProvider.overrideWithValue(NoBio()),

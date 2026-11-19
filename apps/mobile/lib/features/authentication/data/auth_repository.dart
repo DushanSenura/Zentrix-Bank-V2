@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/storage/token_store.dart';
+import '../../support/data/support_repository.dart' show DownloadedFile;
 
 /// Customer-safe failure. Never carries URLs, headers or raw server text beyond the API's own message.
 class ApiFailure implements Exception {
@@ -150,6 +153,27 @@ class AuthRepository {
       (await _authed((o) => _dio.post(path, options: o.copyWith(headers: {...?o.headers, ...?headers}), data: body))).data ?? const {};
   Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async =>
       (await _authed((o) => _dio.put(path, options: o, data: body))).data ?? const {};
+  /// Binary download (statements, receipts). Same refresh and error rules as the JSON helpers.
+  Future<DownloadedFile> getFile(String path, {Map<String, dynamic>? query}) async {
+    Future<Response<List<int>>> call() => _dio.get<List<int>>(path, queryParameters: query, options: _auth.copyWith(responseType: ResponseType.bytes));
+    try {
+      var r = await call();
+      if (r.statusCode == 401 && await _refreshOnce()) r = await call();
+      final s = r.statusCode ?? 0;
+      final bytes = Uint8List.fromList(r.data ?? const <int>[]);
+      if (s < 200 || s >= 300) {
+        Map<String, dynamic> d = const {};
+        try { d = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>; } catch (_) {}
+        throw ApiFailure((d['code'] as String?) ?? 'error', s >= 500 ? 'Something went wrong on our side. Please try again.' : (d['message'] as String?) ?? 'Request failed');
+      }
+      final cd = r.headers.value('content-disposition') ?? '';
+      final name = RegExp('filename="([^"]+)"').firstMatch(cd)?.group(1) ?? 'zentrix-document';
+      return DownloadedFile(bytes, name, r.headers.value('content-type') ?? 'application/octet-stream');
+    } on DioException {
+      throw ApiFailure('network', 'Cannot reach Zentrix Bank. Check your connection and try again.', network: true);
+    }
+  }
+
   Future<void> deleteJson(String path) => _authed((o) => _dio.delete(path, options: o));
 
   Future<Me> me() async => Me.fromJson((await _authed((o) => _dio.get('/api/v1/me', options: o))).data!);

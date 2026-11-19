@@ -21,3 +21,8 @@ TOTP replay within a 30 s window is not blocked; no document image upload (objec
 * **Invitations:** staff accounts start with an unusable random password; a single-use 72 h token lets the invitee set a password and receive their TOTP secret once. The token is only echoed in development.
 * **Exports:** CSV is capped (5,000 rows), permission-gated, neutralises spreadsheet formulas, omits detail fields and is audited.
 * **Maintenance mode** pauses customer sessions (503) but never staff or health checks.
+
+## Phase 7 additions
+* New permission `branches.manage` (Branch Manager, Bank Administrator, Super Administrator). Disputes, tickets and appointments use `support.manage`; requesting a reversal from a dispute additionally needs `transactions.adjust`.
+* Customers can only read, attach to and download from their own tickets and disputes; another customer's id returns 404 and records a security event. Internal staff notes are never returned to customers.
+* Uploads: 5 MB limit, PNG/JPEG/PDF only (by file signature, not name or declared type), client file names are sanitised, downloads are `nosniff` and `no-store`.

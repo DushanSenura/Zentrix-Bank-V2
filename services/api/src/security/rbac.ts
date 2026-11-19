@@ -16,6 +16,7 @@ export const PERMISSIONS: Record<string, string> = {
   'staff.manage': 'Provision staff accounts',
   'roles.manage': 'Edit role permissions',
   'settings.manage': 'Edit products, fees, limits, rates',
+  'branches.manage': 'Manage branches and ATMs',
   'audit.read': 'View audit logs',
   'reports.read': 'View and export reports',
 };
@@ -25,7 +26,7 @@ const all = Object.keys(PERMISSIONS);
 export const ROLE_GRANTS: Record<string, { name: string; permissions: string[] }> = {
   SUPER_ADMIN: { name: 'Super Administrator', permissions: all },
   BANK_ADMIN: { name: 'Bank Administrator', permissions: all.filter((p) => p !== 'roles.manage') },
-  BRANCH_MANAGER: { name: 'Branch Manager', permissions: ['customers.read', 'kyc.review', 'accounts.review', 'cards.review', 'loans.review', 'reports.read', 'support.manage'] },
+  BRANCH_MANAGER: { name: 'Branch Manager', permissions: ['customers.read', 'kyc.review', 'accounts.review', 'cards.review', 'loans.review', 'reports.read', 'support.manage', 'branches.manage'] },
   OPERATIONS_OFFICER: { name: 'Operations Officer', permissions: ['customers.read', 'transactions.read', 'transactions.adjust', 'reports.read'] },
   CUSTOMER_SERVICE: { name: 'Customer Service Officer', permissions: ['customers.read', 'support.manage'] },
   ACCOUNT_OFFICER: { name: 'Account Officer', permissions: ['customers.read', 'kyc.review', 'accounts.review', 'accounts.manage'] },

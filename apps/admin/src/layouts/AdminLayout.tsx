@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, type LucideIcon } from 'lucide-react'
+import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, LifeBuoy, AlertTriangle, MapPin, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
@@ -21,6 +21,11 @@ export const NAV: { group: string; items: Item[] }[] = [
     { to: '/payments', label: 'Transactions', icon: ArrowLeftRight, any: ['transactions.read'] },
     { to: '/operations', label: 'Ledger operations', icon: ClipboardList, any: ['transactions.adjust', 'transactions.read'] },
     { to: '/reports', label: 'Reports', icon: BarChart3, any: ['reports.read'] },
+  ] },
+  { group: 'Service', items: [
+    { to: '/disputes', label: 'Problem reports', icon: AlertTriangle, any: ['support.manage'] },
+    { to: '/tickets', label: 'Support requests', icon: LifeBuoy, any: ['support.manage'] },
+    { to: '/branches', label: 'Branches', icon: MapPin, any: ['branches.manage', 'support.manage'] },
   ] },
   { group: 'Governance', items: [
     { to: '/audit', label: 'Audit log', icon: ScrollText, any: ['audit.read'] },

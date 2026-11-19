@@ -70,7 +70,18 @@ NOT done / limits:
 * Admin tokens are still held in memory only (re-login after reload). The mobile app shows the server's maintenance message in its normal error view; there is no dedicated full-screen maintenance gate yet.
 * GitHub Actions still never run.
 
-## Next: Phase 7 — Advanced banking services
-1. Disputes (customer report → staff queue → decision), support tickets and secure messages, branch/ATM finder and appointments.
-2. Statements (PDF with Unicode fonts + CSV), receipts PDF, account certificates, transaction history search/filter.
-3. Payment requests, templates, subscriptions/recurring detection; object-storage abstraction for documents.
+## Phase 7 — Advanced banking services: DONE with listed gaps (verified 2026-11-19)
+Verified: API 150 tests (16 new on a real Postgres test DB, incl. **Scenario F**: report a problem -> staff review -> decision -> customer notified), worker 3, admin 25 (4 new), Flutter 52 (10 new), `pnpm typecheck` and `pnpm build` clean, `flutter analyze` clean.
+
+Built: **Documents** (PDFKit with embedded Noto Sans / Sinhala / Tamil fonts, en/si/ta): statement PDF and CSV with opening, running and closing balance computed from the ledger (max 12 months, max 5000 rows, audited), payment receipt, account certificate, fixed deposit certificate, loan schedule; all sent with no-store headers. **Search:** `GET /v1/transactions` (account, text, date, amount, direction, kind, cursor paging). **Disputes:** customer report on a settled payment, staff queue with review and decision, optional reversal *request* that still needs a second approver; reporting never moves money. **Support:** tickets with messages, internal staff notes hidden from customers, attachments (PNG/JPEG/PDF judged by file signature, 5 MB, server-generated storage keys, owner-only download) behind an object-storage interface (local disk implementation). **Branches and ATMs** with distance sort and staff management; **appointments**. **Payment requests** (the payer gets a normal draft payment and still confirms with their PIN), **templates**, read-only **subscription detection**. Mobile: history with filters, statements and receipts via the share sheet, report a problem, help hub with FAQs, tickets, branch finder and appointments. Admin: problem reports, support requests, branches and appointments.
+
+Defects found while building: mixed Latin and Sinhala text drawn in one font lost the Latin glyphs (now drawn script by script, with a test that both fonts are embedded); my own test used wrong enum values (the API correctly rejected them).
+
+NOT done / limits:
+* **Sinhala and Tamil are unreviewed.** The label translations were written by me and have not been checked by a native speaker, and I could not look at the rendered PDFs, so conjunct shaping is unverified. The fonts do embed (tested), nothing more is claimed.
+* Mobile cannot attach files to a ticket (the API supports it), cannot yet create or pay payment requests or use templates, and shows no subscription screen: the endpoints exist and are tested, the screens do not. The admin ticket view lists attachment names but has no download button. Appointment times are a requested day (about 10:00), not a slot picker; branch finder sorts by distance only when the API is given coordinates and the app does not send any (city filter only).
+* Share sheet, file writing and date picker are not covered by device tests; the sharer is replaced by a recording fake in widget tests. Admin UI has still never been opened in a real browser. GitHub Actions has still never run.
+* Subscription detection is a simple same-recipient, same-amount, weekly-or-monthly heuristic. Attachment storage is local disk (`STORAGE_DIR`, default `./uploads`, git-ignored); there is no virus scanning, and no cloud storage adapter yet.
+
+## Next: Phase 8
+See the build prompt: risk and fraud alerts, notification delivery channels, insights, and the optional AI features. Carry forward: native-speaker review of si/ta labels, mobile screens for payment requests, templates and subscriptions, and a real-browser pass over the admin UI.

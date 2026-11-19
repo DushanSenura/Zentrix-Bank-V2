@@ -187,6 +187,8 @@ class ServicesHubPage extends StatelessWidget {
           tile(Icons.request_quote_outlined, 'Loans', 'Apply, track and repay', '/services/loans'),
           tile(Icons.savings_outlined, 'Savings goals', 'Save towards what matters', '/services/savings'),
           tile(Icons.pie_chart_outline, 'Budgets', 'Monthly spending targets', '/services/budgets'),
+          tile(Icons.history, 'Transaction history', 'Search, filter and download statements', '/history'),
+          tile(Icons.support_agent, 'Help and support', 'Messages, problem reports, branches', '/support'),
         ])),
       ]),
     );

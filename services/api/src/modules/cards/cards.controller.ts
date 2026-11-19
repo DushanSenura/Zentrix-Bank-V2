@@ -31,7 +31,6 @@ export class CardsController {
   @Get('cards') list(@CurrentUser() u: AuthUser) { return this.cards.list(u.id); }
   @Get('cards/:id') detail(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) { return this.cards.detail(u.id, id); }
   @Get('cards/:id/history') history(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) { return this.cards.history(u.id, id); }
-  @Get('branches') branches() { return this.cards.branches(); }
 
   @Post('cards') request(@CurrentUser() u: AuthUser, @Body(new ZodPipe(requestSchema)) b: z.infer<typeof requestSchema>) { return this.cards.request(u.id, b); }
 

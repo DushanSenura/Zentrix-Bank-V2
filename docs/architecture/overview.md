@@ -25,6 +25,11 @@ All product money uses the same ledger and idempotency rules. **Cards** never ho
 ## Administration (Phase 6)
 The portal is a thin client over the same API. Every admin route names the permission it needs (`@StaffWith(...)`); navigation and route guards are conveniences only. Dashboard sections are assembled per caller from live aggregates. Ledger corrections (reversals, adjustments) never edit history: a reversal posts the opposite journal (`REV-<ref>`), an adjustment posts `ADJ-<approvalId>` against a system account; both are two-person and atomic with their audit record. Policy settings are a whitelist in `SettingsService` read by the services on each use, so changes apply immediately.
 
+## Advanced services (Phase 7)
+* **Documents** (`modules/documents`): statements, receipts and certificates are generated on request from the ledger, never from client-supplied figures. `pdf.ts` embeds Noto Sans, Sinhala and Tamil fonts and draws mixed-script text run by run. Responses are `Cache-Control: no-store` and every download is audited.
+* **Support** (`modules/support`): disputes, tickets, attachments, branches and appointments. A dispute never moves money; accepting one can only *request* a reversal, which goes through the existing maker-checker approval. Attachments go through the `ObjectStorage` interface (`LocalDiskStorage` today); file type is decided by magic bytes, keys are server-generated, downloads check ownership.
+* **Payment extras** (`modules/payments/extras.*`): a payment request produces a normal draft payment for the payer, who still authorises it with their PIN; templates only store a destination spec; subscription detection is read-only.
+
 ## Conventions
 TypeScript strict; Zod for env/DTO validation; feature modules under `services/api/src/modules/*`; Flutter `features/<name>/{domain,data,presentation}`; admin `src/features/<name>`; no floating-point money anywhere; never log secrets/PINs/tokens/documents.
 

@@ -578,6 +578,8 @@ model Branch {
   type      String  @default("BRANCH") // BRANCH | ATM
   latitude  Float?
   longitude Float?
+  phone     String?
+  hours     String?
   active    Boolean @default(true)
 }
 
@@ -805,4 +807,122 @@ model Budget {
   createdAt  DateTime @default(now())
 
   @@unique([customerId, category])
+}
+
+// ───────────────────────── Phase 7: advanced banking services ─────────────────────────
+
+model Dispute {
+  id             String    @id @default(uuid()) @db.Uuid
+  reference      String    @unique
+  customerId     String    @db.Uuid
+  paymentId      String    @db.Uuid
+  reasonCode     String // UNAUTHORISED | WRONG_AMOUNT | DUPLICATE | NOT_RECEIVED | OTHER
+  description    String
+  status         String    @default("OPEN") // OPEN | UNDER_REVIEW | ACCEPTED | REJECTED
+  assignedToId   String?   @db.Uuid
+  resolution     String?
+  decidedById    String?   @db.Uuid
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([customerId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentId])
+}
+
+model SupportTicket {
+  id           String    @id @default(uuid()) @db.Uuid
+  reference    String    @unique
+  customerId   String    @db.Uuid
+  subject      String
+  category     String // GENERAL | ACCOUNT | CARD | PAYMENT | LOAN | TECHNICAL
+  status       String    @default("OPEN") // OPEN | PENDING_CUSTOMER | RESOLVED | CLOSED
+  priority     String    @default("NORMAL")
+  assignedToId String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  closedAt     DateTime?
+
+  messages     SupportMessage[]
+  attachments  SupportAttachment[]
+
+  @@index([customerId, status])
+  @@index([status, updatedAt])
+}
+
+model SupportMessage {
+  id         String        @id @default(uuid()) @db.Uuid
+  ticketId   String        @db.Uuid
+  authorId   String        @db.Uuid
+  authorType String // CUSTOMER | STAFF
+  body       String
+  internal   Boolean       @default(false) // staff-only note, never shown to the customer
+  createdAt  DateTime      @default(now())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+}
+
+model SupportAttachment {
+  id           String        @id @default(uuid()) @db.Uuid
+  ticketId     String        @db.Uuid
+  uploadedById String        @db.Uuid
+  fileName     String
+  contentType  String
+  sizeBytes    Int
+  sha256       String
+  storageKey   String        @unique
+  createdAt    DateTime      @default(now())
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+model Appointment {
+  id           String    @id @default(uuid()) @db.Uuid
+  customerId   String    @db.Uuid
+  branchId     String    @db.Uuid
+  purpose      String
+  preferredAt  DateTime
+  status       String    @default("REQUESTED") // REQUESTED | CONFIRMED | CANCELLED | COMPLETED
+  confirmedAt  DateTime?
+  confirmedFor DateTime?
+  decidedById  String?   @db.Uuid
+  note         String?
+  createdAt    DateTime  @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([status, preferredAt])
+}
+
+model PaymentRequest {
+  id                String    @id @default(uuid()) @db.Uuid
+  reference         String    @unique
+  requesterId       String    @db.Uuid
+  payerId           String    @db.Uuid
+  receiveAccountId  String    @db.Uuid
+  amountMinor       BigInt
+  currency          String    @default("LKR")
+  note              String?
+  status            String    @default("PENDING") // PENDING | PAID | DECLINED | CANCELLED | EXPIRED
+  paymentId         String?   @db.Uuid
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+
+  @@index([payerId, status])
+  @@index([requesterId, status])
+}
+
+model PaymentTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  customerId      String   @db.Uuid
+  name            String
+  sourceAccountId String?  @db.Uuid
+  destination     Json // the same destination spec the payment API accepts
+  amountMinor     BigInt?
+  note            String?
+  createdAt       DateTime @default(now())
+
+  @@unique([customerId, name])
 }
