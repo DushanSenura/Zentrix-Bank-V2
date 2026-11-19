@@ -274,6 +274,8 @@ model AccountApplication {
   decisionReason   String?
   decidedById      String?           @db.Uuid
   decidedAt        DateTime?
+  openingDepositMinor BigInt? // cash received at the branch, confirmed by staff at approval
+  accountId        String?           @db.Uuid // set when approved
   createdAt        DateTime          @default(now())
 
   customer         CustomerProfile   @relation(fields: [customerId], references: [userId])
@@ -326,6 +328,10 @@ model LedgerAccount {
   type       LedgerAccountType
   currency   String
   accountId  String?           @unique @db.Uuid
+  /// Verified PROJECTION of posted entries (normal-side signed: credit-normal for LIABILITY/EQUITY/INCOME, debit-normal for ASSET/EXPENSE).
+  /// The postings are the source of truth; reconciliation compares the two.
+  balanceMinor  BigInt           @default(0)
+  allowNegative Boolean          @default(false)
   createdAt  DateTime          @default(now())
 
   account    Account?          @relation(fields: [accountId], references: [id])

@@ -22,7 +22,8 @@ class GlassCard extends StatelessWidget {
         border: Border.all(color: c.glassBorder),
         boxShadow: const [BoxShadow(color: Color(0x14071B45), blurRadius: 24, offset: Offset(0, 10))],
       ),
-      child: child,
+      // Transparent Material so ListTile/Radio/Checkbox inside a card get ink and a valid ancestor.
+      child: Material(type: MaterialType.transparency, child: child),
     );
     if (!blur) return surface;
     return ClipRRect(

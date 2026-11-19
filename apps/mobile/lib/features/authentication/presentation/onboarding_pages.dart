@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../../core/design_system/widgets.dart';
 import '../data/auth_repository.dart';
+import '../../accounts/presentation/accounts_pages.dart';
 import 'auth_controller.dart';
 import 'auth_pages.dart';
 
@@ -103,6 +104,7 @@ class HomePage extends ConsumerWidget {
     // On sign-out this rebuilds once with no user before the router redirects to /login.
     final me = ref.watch(authControllerProvider).me;
     if (me == null) return const SizedBox.shrink();
+    if (me.status == 'ACTIVE') return const AccountsHome();
     final (String text, String? action, String? route) = switch (me.kycStatus) {
       'NOT_SUBMITTED' => ('Verify your identity so the bank can activate your account.', 'Verify identity', '/kyc'),
       'MORE_INFO_REQUESTED' => ('The bank needs more information: ${me.kycNote ?? ''}', 'Update details', '/kyc'),

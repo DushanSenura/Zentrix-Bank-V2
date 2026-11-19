@@ -8,6 +8,9 @@ import { SecurityController } from './modules/auth/security.controller';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { AuthService } from './modules/auth/auth.service';
 import { TokenService } from './modules/auth/token.service';
+import { AccountsController, AdminAccountsController } from './modules/accounts/accounts.controller';
+import { AccountsService } from './modules/accounts/accounts.service';
+import { LedgerService } from './modules/ledger/ledger.service';
 import { AdminKycController } from './modules/customers/admin-kyc.controller';
 import { MeController } from './modules/customers/me.controller';
 import { HealthController } from './modules/health/health.controller';
@@ -18,9 +21,11 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController],
   providers: [
     AuthService,
+    LedgerService,
+    AccountsService,
     TokenService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -16,6 +16,7 @@ export default function AdminLayout() {
         <span className="text-lg font-semibold">Zentrix Bank · Administration</span>
         <nav className="ml-6 flex gap-1">
           <NavLink to="/" end className={link}>Status</NavLink>
+          {(can('accounts.review') || can('customers.read')) && <NavLink to="/accounts" className={link}>Accounts</NavLink>}
           {can('kyc.review') && <NavLink to="/kyc" className={link}>KYC review</NavLink>}
         </nav>
         <select aria-label="Theme" value={theme} onChange={(e) => { const t = e.target.value as Theme; setTheme(t); applyTheme(t) }}

@@ -136,6 +136,12 @@ class AuthRepository {
     }
   }
 
+  /// Authenticated JSON helpers for feature repositories (token refresh handled here, in one place).
+  Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async =>
+      (await _authed((o) => _dio.get(path, options: o, queryParameters: query))).data ?? const {};
+  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async =>
+      (await _authed((o) => _dio.post(path, options: o, data: body))).data ?? const {};
+
   Future<Me> me() async => Me.fromJson((await _authed((o) => _dio.get('/api/v1/me', options: o))).data!);
 
   Future<bool> _refreshOnce() async {

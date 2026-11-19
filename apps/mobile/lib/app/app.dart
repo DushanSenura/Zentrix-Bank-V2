@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design_system/app_theme.dart';
+import '../features/accounts/presentation/accounts_pages.dart';
 import '../features/authentication/presentation/auth_controller.dart';
 import '../features/authentication/presentation/auth_pages.dart';
 import '../features/authentication/presentation/lock.dart';
@@ -41,6 +42,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordPage()),
       GoRoute(path: '/unlock', builder: (_, _) => const UnlockPage()),
       GoRoute(path: '/', builder: (_, _) => const HomePage()),
+      GoRoute(path: '/accounts/open', builder: (_, _) => const OpenAccountPage()),
+      GoRoute(path: '/accounts/:id', builder: (_, st) => AccountDetailPage(id: st.pathParameters['id']!)),
+      GoRoute(path: '/applications', builder: (_, _) => const ApplicationsPage()),
       GoRoute(path: '/kyc', builder: (_, _) => const KycPage()),
       GoRoute(path: '/pin', builder: (_, _) => const PinSetupPage()),
       GoRoute(path: '/security', builder: (_, _) => const SecurityCenterPage(), routes: [

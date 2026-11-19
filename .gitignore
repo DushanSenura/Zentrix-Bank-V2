@@ -17,3 +17,4 @@ uploads/
 *.jks
 key.properties
 .local-dev-credentials.json
+*.tsbuildinfo

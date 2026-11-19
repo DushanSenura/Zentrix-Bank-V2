@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/design_system/tokens.dart';
+import '../../core/utils/no_retry.dart';
 import '../../core/design_system/widgets.dart';
 import '../../core/security/biometric_service.dart';
 import '../authentication/data/auth_repository.dart';
@@ -10,9 +11,9 @@ import '../authentication/presentation/auth_controller.dart';
 import '../authentication/presentation/auth_pages.dart';
 import '../settings/settings_controller.dart';
 
-final _sessionsProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).sessions());
-final _historyProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).loginHistory());
-final _devicesProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).devices());
+final _sessionsProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).sessions(), retry: noRetry);
+final _historyProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).loginHistory(), retry: noRetry);
+final _devicesProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).devices(), retry: noRetry);
 
 String _when(DateTime t) {
   final l = t.toLocal();
