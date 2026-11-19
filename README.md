@@ -16,10 +16,13 @@ pnpm db:generate
 pnpm --filter @zentrix/database migrate:deploy
 pnpm db:seed                    # RBAC catalogue + fictional demo users; credentials go to .local-dev-credentials.json (git-ignored)
 pnpm api:dev                    # http://localhost:3000/api/v1/health  ·  Swagger: /api/docs
-pnpm worker:dev                 # outbox relay
+pnpm worker:dev                 # outbox relay + scheduled-payment tick (needs INTERNAL_JOB_TOKEN in .env)
 pnpm admin:dev                  # http://localhost:5173
 ```
 Mobile: `cd apps/mobile && flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000` (Android emulator; use your LAN IP on a device).
+
+## Money movement (simulation)
+Payments, scheduled and recurring payments run through the API. Set `INTERNAL_JOB_TOKEN` (>= 32 chars) in `.env` for both the API and the worker; without it scheduled payments never execute.
 
 ## Validate
 ```bash

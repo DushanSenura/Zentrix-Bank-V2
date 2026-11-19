@@ -9,6 +9,7 @@ import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_controller.dart';
 import '../../authentication/presentation/auth_pages.dart';
 import '../../settings/settings_controller.dart';
+import '../../payments/presentation/payments_pages.dart';
 import '../data/accounts_repository.dart';
 
 String _err(Object e) => e is ApiFailure ? e.message : 'Something went wrong. Please try again.';
@@ -55,6 +56,10 @@ class AccountsHome extends ConsumerWidget {
               Row(children: [
                 Expanded(child: Text('Hello, ${me.fullName.split(' ').first}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800))),
                 IconButton(tooltip: hide ? 'Show balances' : 'Hide balances', icon: Icon(hide ? Icons.visibility_off_outlined : Icons.visibility_outlined), onPressed: () => ref.read(settingsProvider.notifier).setHideBalances(!hide)),
+                Consumer(builder: (_, ref, _) {
+                  final unread = ref.watch(unreadCountProvider).asData?.value ?? 0;
+                  return IconButton(tooltip: unread > 0 ? 'Notifications, $unread unread' : 'Notifications', icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.notifications_none)), onPressed: () async { await context.push('/notifications'); ref.invalidate(unreadCountProvider); });
+                }),
                 IconButton(tooltip: 'Security & settings', icon: const Icon(Icons.shield_outlined), onPressed: () => context.push('/security')),
               ]),
               const SizedBox(height: ZxSpace.md),
@@ -71,6 +76,14 @@ class AccountsHome extends ConsumerWidget {
                     AmountText(list.totalBalanceMinor, animate: true, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontFeatures: const [FontFeature.tabularFigures()])),
                   ])),
                   const SizedBox(height: ZxSpace.md),
+                  if (list.items.isNotEmpty) ...[
+                    Row(children: [
+                      Expanded(child: FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), onPressed: () => context.push('/payments/transfer'), icon: const Icon(Icons.send), label: const Text('Send money'))),
+                      const SizedBox(width: ZxSpace.sm),
+                      Expanded(child: OutlinedButton.icon(style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)), onPressed: () => context.push('/payments'), icon: const Icon(Icons.payments_outlined), label: const Text('Payments'))),
+                    ]),
+                    const SizedBox(height: ZxSpace.md),
+                  ],
                   if (list.items.isEmpty)
                     GlassCard(child: Column(children: [
                       const Text('You have no accounts yet. Open one and the bank will confirm it after you make your opening deposit.', textAlign: TextAlign.center),

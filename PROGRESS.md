@@ -34,7 +34,19 @@ NOT done / limits:
 * Balance projection can be corrupted by direct DB writes; reconciliation reports it but nothing alerts or blocks yet.
 * GitHub Actions still never run; Flutter/admin UIs never exercised against a device/browser.
 
-## Next: Phase 4 — Transfers and payments
-1. Payment pipeline: draft → server-verified step-up (PIN) → post journal + fee → receipt; idempotency keys (IdempotencyRecord), limits/fees policy tables, unknown-outcome handling.
-2. Beneficiaries, own/internal/simulated-interbank transfers, bill payments, QR, scheduled/recurring (BullMQ).
-3. Flutter payment flow (review → authorise → processing → receipt); Scenarios B, I, J.
+## Phase 4 — Transfers and payments: DONE with listed gaps (verified 2026-11-19)
+Verified: API 63 tests (22 new payment tests on a real Postgres test DB), worker 3 (outbox relay exactly-once, concurrent workers), admin 5, Flutter 30 (12 new), Android debug APK builds with the camera plugin. Covered: **Scenario B** (review → PIN → balanced ledger journal → receipt → notifications → audit), **Scenario I** (5 concurrent creates with one Idempotency-Key = 1 payment; 5 concurrent authorisations = 1 journal), **Scenario J** (lost response: reconcile by key / GET, retry never double-posts; app shows unknown outcome and never "failed"), **Scenario H via the API** (6×300 vs 1,000 → exactly 3 post), daily limit under concurrency, server-owned fee (client fee/status rejected by strict schemas), wrong PIN / 5-strike sign-out, frozen/foreign accounts, beneficiaries with server-resolved names and isolation, QR (identity-only, foreign formats refused), bills, one-time scheduled and weekly/monthly recurring execution by the job (concurrent runs create one instruction; recovered after a simulated crash), draft expiry, internal job endpoint secret. **Live end-to-end with the real worker:** a payment scheduled ~75 s ahead was executed by the worker's due-tick, the "Payment sent" notification was delivered by the outbox relay, balances moved correctly and reconciliation stayed clean.
+
+Bugs found and fixed this phase: the mobile client replayed ANY 401 after a token refresh, so a wrong PIN was sent twice and double-counted toward the lockout (present since Phase 2) — now refreshes only on token expiry; test-name collisions in a persistent test DB; worker transaction wait too short under concurrency.
+
+NOT done / limits:
+* Not built: loan-instalment payments (Phase 5), transfer templates, payment requests (customer-to-customer), batch transfers, favourite amounts, transfer PDF receipts and sharing (Phase 7), transaction history search/filters and dispute reporting (Phase 7), per-customer lowerable transfer limit, payment-instruction reversal API/UI with maker-checker (Phase 6), push notifications (Phase 8; in-app only), idempotency-record cleanup job.
+* Monthly recurrence clamps to month length and can drift (31st → 28th stays 28th). Recurring runs use the destination resolved at creation.
+* Interbank, biller and QR flows settle against simulated system accounts; nothing connects to a real network. Names are fictional/"sample".
+* Mobile: QR scanner and My QR screens, date picker and repeat UI are not covered by widget tests and have never run on a camera/device. Admin payments page is read-only.
+* Worker is triggered by BullMQ every 30 s (so a scheduled payment runs within ~30 s of due time). GitHub Actions still never run; CI env lacks INTERNAL_JOB_TOKEN (payment tests set it themselves).
+
+## Next: Phase 5 — Cards, loans, deposits, savings
+1. Cards: requests (debit/virtual/credit application), staff approval queue, activation, freeze/limits/controls, card status history.
+2. Fixed deposits (products/rates, open via ledger, maturity job), loans (applications, staff decision with maker-checker, disbursement, schedule, instalment payments via the payment pipeline), savings goals and budgets.
+3. Scenarios C, D, E.

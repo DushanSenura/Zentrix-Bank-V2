@@ -3,6 +3,7 @@ import { AuthProvider } from './auth'
 import LoginPage from './features/auth/LoginPage'
 import DashboardPage from './features/dashboard/DashboardPage'
 import AccountsPage from './features/accounts/AccountsPage'
+import PaymentsPage from './features/payments/PaymentsPage'
 import KycPage from './features/kyc/KycPage'
 import AdminLayout from './layouts/AdminLayout'
 
@@ -16,6 +17,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="kyc" element={<KycPage />} />
           <Route path="accounts" element={<AccountsPage />} />
+          <Route path="payments" element={<PaymentsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

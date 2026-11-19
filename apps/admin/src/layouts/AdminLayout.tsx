@@ -17,6 +17,7 @@ export default function AdminLayout() {
         <nav className="ml-6 flex gap-1">
           <NavLink to="/" end className={link}>Status</NavLink>
           {(can('accounts.review') || can('customers.read')) && <NavLink to="/accounts" className={link}>Accounts</NavLink>}
+          {can('transactions.read') && <NavLink to="/payments" className={link}>Transactions</NavLink>}
           {can('kyc.review') && <NavLink to="/kyc" className={link}>KYC review</NavLink>}
         </nav>
         <select aria-label="Theme" value={theme} onChange={(e) => { const t = e.target.value as Theme; setTheme(t); applyTheme(t) }}

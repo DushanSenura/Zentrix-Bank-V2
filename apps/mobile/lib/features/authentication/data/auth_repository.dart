@@ -94,9 +94,16 @@ class AuthRepository {
   Future<Response<Map<String, dynamic>>> _authed(Future<Response<Map<String, dynamic>>> Function(Options o) call) async {
     return _send(() async {
       var r = await call(_auth);
-      if (r.statusCode == 401 && await _refreshOnce()) r = await call(_auth);
+      // Refresh ONLY when the access token expired. A 401 for a wrong PIN/password must never be replayed:
+      // that would silently double-count failed attempts toward the lockout.
+      if (r.statusCode == 401 && _isTokenExpiry(r.data) && await _refreshOnce()) r = await call(_auth);
       return r;
     });
+  }
+
+  static bool _isTokenExpiry(Map<String, dynamic>? d) {
+    final c = d?['code'];
+    return c == 'unauthenticated' || c == 'session_expired';
   }
 
   Future<void> _adopt(Map<String, dynamic> d) async {
@@ -139,8 +146,11 @@ class AuthRepository {
   /// Authenticated JSON helpers for feature repositories (token refresh handled here, in one place).
   Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async =>
       (await _authed((o) => _dio.get(path, options: o, queryParameters: query))).data ?? const {};
-  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async =>
-      (await _authed((o) => _dio.post(path, options: o, data: body))).data ?? const {};
+  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body, {Map<String, String>? headers}) async =>
+      (await _authed((o) => _dio.post(path, options: o.copyWith(headers: {...?o.headers, ...?headers}), data: body))).data ?? const {};
+  Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async =>
+      (await _authed((o) => _dio.put(path, options: o, data: body))).data ?? const {};
+  Future<void> deleteJson(String path) => _authed((o) => _dio.delete(path, options: o));
 
   Future<Me> me() async => Me.fromJson((await _authed((o) => _dio.get('/api/v1/me', options: o))).data!);
 

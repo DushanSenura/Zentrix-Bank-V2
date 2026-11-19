@@ -49,6 +49,7 @@ const CREDIT_NORMAL = new Set(['LIABILITY', 'EQUITY', 'INCOME']);
 export const SYSTEM_ACCOUNTS = {
   cash: { code: 'SYS-CASH-LKR', name: 'Cash & settlement (LKR)', type: 'ASSET', allowNegative: true },
   feeIncome: { code: 'SYS-FEE-INCOME-LKR', name: 'Fee income (LKR)', type: 'INCOME', allowNegative: false },
+  billers: { code: 'SYS-BILLERS-LKR', name: 'Biller settlement (LKR, simulated)', type: 'ASSET', allowNegative: true },
   interbank: { code: 'SYS-INTERBANK-LKR', name: 'Interbank settlement (LKR, simulated)', type: 'ASSET', allowNegative: true },
   interestExpense: { code: 'SYS-INTEREST-EXPENSE-LKR', name: 'Interest expense (LKR)', type: 'EXPENSE', allowNegative: true },
 } as const;

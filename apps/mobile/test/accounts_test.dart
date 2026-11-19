@@ -1,52 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zentrix_bank/app/app.dart';
-import 'package:zentrix_bank/core/security/biometric_service.dart';
-import 'package:zentrix_bank/core/storage/prefs_store.dart';
 import 'package:zentrix_bank/core/utils/money.dart';
 import 'package:zentrix_bank/features/authentication/data/auth_repository.dart';
 
-typedef Handler = Map<String, dynamic> Function(String path, Map<String, dynamic>? query, Map<String, dynamic>? body);
-
-class FakeApi implements AuthRepository {
-  FakeApi(this.handler);
-  final Handler handler;
-  final calls = <String>[];
-  static const active = Me(id: '1', fullName: 'Amaya Perera', status: 'ACTIVE', kycStatus: 'APPROVED', hasPin: false, customerNumber: 'ZB90000001');
-
-  @override
-  Future<Me?> restore() async => active;
-  @override
-  Future<Map<String, dynamic>> getJson(String path, {Map<String, dynamic>? query}) async { calls.add('GET $path'); return handler(path, query, null); }
-  @override
-  Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body) async { calls.add('POST $path'); return handler(path, null, body); }
-  @override
-  Future<void> logout() async {}
-  @override
-  dynamic noSuchMethod(Invocation i) => throw UnimplementedError('${i.memberName}');
-}
-
-class NoBio implements BiometricService {
-  @override
-  Future<bool> available() async => false;
-  @override
-  Future<bool> authenticate(String reason) async => false;
-}
-
-Map<String, dynamic> acct(String id, String name, int bal, {String status = 'ACTIVE'}) => {
-      'id': id, 'accountNumberMasked': '*******1234', 'nickname': name, 'productName': 'Savings Account', 'productCode': 'SAVINGS_STD', 'kind': 'SAVINGS',
-      'interestRateBps': 350, 'currency': 'LKR', 'status': status, 'openedAt': '2026-01-01T00:00:00Z', 'balanceMinor': bal,
-    };
-
-Widget app(FakeApi api) => ProviderScope(
-      overrides: [
-        authRepositoryProvider.overrideWithValue(api),
-        prefsStoreProvider.overrideWithValue(MemoryPrefsStore()..data['onboarded'] = '1'),
-        biometricServiceProvider.overrideWithValue(NoBio()),
-      ],
-      child: const ZentrixApp(),
-    );
+import 'fake_api.dart';
 
 void main() {
   test('formatMinor formats integer minor units without floating point', () {
@@ -59,7 +16,7 @@ void main() {
 
   testWidgets('dashboard shows the server-reported total and accounts; balances can be hidden', (t) async {
     final api = FakeApi((p, q, b) => {'items': [acct('a1', 'Main savings', 5000000), acct('a2', 'Rainy day', 250050)], 'totalBalanceMinor': 5250050});
-    await t.pumpWidget(app(api));
+    await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
     expect(find.text('Hello, Amaya'), findsOneWidget);
     expect(find.text('LKR 52,500.50'), findsOneWidget); // total
@@ -73,7 +30,7 @@ void main() {
   });
 
   testWidgets('empty state offers to open an account', (t) async {
-    await t.pumpWidget(app(FakeApi((p, q, b) => {'items': [], 'totalBalanceMinor': 0})));
+    await t.pumpWidget(appWith(FakeApi((p, q, b) => {'items': [], 'totalBalanceMinor': 0})));
     await t.pumpAndSettle();
     expect(find.textContaining('no accounts yet'), findsOneWidget);
     expect(find.text('Open an account'), findsOneWidget);
@@ -85,7 +42,7 @@ void main() {
       if (fail) throw ApiFailure('network', 'Cannot reach Zentrix Bank. Check your connection and try again.', network: true);
       return {'items': [acct('a1', 'Main savings', 100)], 'totalBalanceMinor': 100};
     });
-    await t.pumpWidget(app(api));
+    await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
     expect(find.textContaining('Cannot reach Zentrix Bank'), findsOneWidget);
     fail = false;
@@ -105,7 +62,7 @@ void main() {
       }
       throw ApiFailure('not_found', 'nope');
     });
-    await t.pumpWidget(app(api));
+    await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
     await t.tap(find.text('Main savings'));
     await t.pumpAndSettle();
@@ -127,7 +84,7 @@ void main() {
       if (p == '/api/v1/accounts/a1') return acct('a1', 'Main', 100, status: 'FROZEN');
       return {'items': [], 'nextCursor': null};
     });
-    await t.pumpWidget(app(api));
+    await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
     expect(find.text('Frozen'), findsOneWidget);
     await t.tap(find.text('Main'));
@@ -149,7 +106,7 @@ void main() {
       }
       return {};
     });
-    await t.pumpWidget(app(api));
+    await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
     await t.tap(find.text('Open an account'));
     await t.pumpAndSettle();

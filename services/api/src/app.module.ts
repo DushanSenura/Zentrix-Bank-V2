@@ -11,6 +11,11 @@ import { TokenService } from './modules/auth/token.service';
 import { AccountsController, AdminAccountsController } from './modules/accounts/accounts.controller';
 import { AccountsService } from './modules/accounts/accounts.service';
 import { LedgerService } from './modules/ledger/ledger.service';
+import { PinService } from './modules/auth/pin.service';
+import { BeneficiariesService } from './modules/payments/beneficiaries.service';
+import { AdminPaymentsController, InternalJobsController, NotificationsController, PaymentsController } from './modules/payments/payments.controller';
+import { PaymentsService } from './modules/payments/payments.service';
+import { PolicyService } from './modules/payments/policy.service';
 import { AdminKycController } from './modules/customers/admin-kyc.controller';
 import { MeController } from './modules/customers/me.controller';
 import { HealthController } from './modules/health/health.controller';
@@ -21,11 +26,15 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController],
   providers: [
     AuthService,
     LedgerService,
     AccountsService,
+    PinService,
+    PolicyService,
+    BeneficiariesService,
+    PaymentsService,
     TokenService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

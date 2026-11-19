@@ -9,3 +9,13 @@ String formatMinor(int minor, {String currency = 'LKR', bool signed = false}) {
 }
 
 const hiddenAmount = 'LKR ••••••';
+
+/// Parses what a customer types ("2,500.50", "2500", "0.5") into minor units WITHOUT floating point.
+/// Returns null for anything that is not a positive amount with at most 2 decimals.
+int? parseMajorToMinor(String input) {
+  final t = input.trim().replaceAll(',', '');
+  final m = RegExp(r'^(\d{1,12})(?:\.(\d{1,2}))?$').firstMatch(t);
+  if (m == null) return null;
+  final minor = int.parse(m.group(1)!) * 100 + int.parse((m.group(2) ?? '').padRight(2, '0'));
+  return minor > 0 ? minor : null;
+}

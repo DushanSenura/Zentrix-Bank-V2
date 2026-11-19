@@ -9,6 +9,9 @@ import '../features/authentication/presentation/auth_pages.dart';
 import '../features/authentication/presentation/lock.dart';
 import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
+import '../features/payments/data/payments_repository.dart';
+import '../features/payments/presentation/payment_flow.dart';
+import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
 import '../features/settings/settings_controller.dart';
 
@@ -42,6 +45,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordPage()),
       GoRoute(path: '/unlock', builder: (_, _) => const UnlockPage()),
       GoRoute(path: '/', builder: (_, _) => const HomePage()),
+      GoRoute(path: '/payments', builder: (_, _) => const PaymentsHubPage(), routes: [
+        GoRoute(path: 'transfer', builder: (_, st) => TransferPage(args: st.extra is TransferArgs ? st.extra as TransferArgs : const TransferArgs())),
+        GoRoute(path: 'bills', builder: (_, _) => const BillsPage()),
+        GoRoute(path: 'review', builder: (_, st) => PaymentReviewPage(draft: st.extra as DraftRequest)),
+        GoRoute(path: 'beneficiaries', builder: (_, _) => const BeneficiariesPage(), routes: [GoRoute(path: 'add', builder: (_, _) => const AddBeneficiaryPage())]),
+        GoRoute(path: 'my-qr', builder: (_, _) => const MyQrPage()),
+        GoRoute(path: 'scan', builder: (_, _) => const ScanPage()),
+        GoRoute(path: 'scheduled', builder: (_, _) => const ScheduledPage()),
+      ]),
+      GoRoute(path: '/receipts/:id', builder: (_, st) => ReceiptPage(id: st.pathParameters['id']!)),
+      GoRoute(path: '/notifications', builder: (_, _) => const NotificationsPage()),
       GoRoute(path: '/accounts/open', builder: (_, _) => const OpenAccountPage()),
       GoRoute(path: '/accounts/:id', builder: (_, st) => AccountDetailPage(id: st.pathParameters['id']!)),
       GoRoute(path: '/applications', builder: (_, _) => const ApplicationsPage()),

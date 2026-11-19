@@ -1,4 +1,4 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -7,8 +7,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { ZodPipe } from '../../common/zod.pipe';
 import { hashSecret, passwordProblem, pinProblem, verifySecret } from '../../security/password';
 import { CurrentUser, CustomerOnly, type AuthUser } from './auth.decorators';
-
-const MAX_PIN_FAILS = 5;
+import { PinService } from './pin.service';
 
 const changePasswordSchema = z.object({ current: z.string().max(128), next: z.string().max(128) });
 const changePinSchema = z.object({ currentPin: z.string().max(6), newPin: z.string().max(6) });
@@ -20,7 +19,7 @@ const deviceSchema = z.object({ fingerprint: z.string().trim().min(8).max(128), 
 @Controller({ path: 'security', version: '1' })
 @CustomerOnly()
 export class SecurityController {
-  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService, private readonly pins: PinService) {}
 
   @Get('sessions')
   async sessions(@CurrentUser() u: AuthUser) {
@@ -72,36 +71,16 @@ export class SecurityController {
   /** Verifies the app PIN server-side. 5 consecutive failures sign the customer out everywhere. */
   @Post('pin/verify') @HttpCode(204)
   async verifyPin(@CurrentUser() u: AuthUser, @Body(new ZodPipe(verifyPinSchema)) b: z.infer<typeof verifyPinSchema>) {
-    await this.checkPin(u, b.pin);
+    await this.pins.verify(u.id, b.pin);
   }
 
   @Put('pin') @HttpCode(204)
   async changePin(@CurrentUser() u: AuthUser, @Body(new ZodPipe(changePinSchema)) b: z.infer<typeof changePinSchema>) {
-    await this.checkPin(u, b.currentPin);
+    await this.pins.verify(u.id, b.currentPin);
     const problem = pinProblem(b.newPin);
     if (problem) throw new BadRequestException({ code: 'weak_pin', message: problem, fields: { newPin: problem } });
     await this.prisma.user.update({ where: { id: u.id }, data: { pinHash: await hashSecret(b.newPin), pinSetAt: new Date() } });
     await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.pin_changed' });
-  }
-
-  private async checkPin(u: AuthUser, pin: string): Promise<void> {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: u.id } });
-    if (!user.pinHash) throw new ConflictException({ code: 'no_pin', message: 'Set an app PIN first' });
-    if (await verifySecret(user.pinHash, pin)) {
-      if (user.pinFailedAttempts) await this.prisma.user.update({ where: { id: u.id }, data: { pinFailedAttempts: 0 } });
-      return;
-    }
-    const failed = user.pinFailedAttempts + 1;
-    if (failed >= MAX_PIN_FAILS) {
-      await this.prisma.$transaction([
-        this.prisma.user.update({ where: { id: u.id }, data: { pinFailedAttempts: 0 } }),
-        this.prisma.session.updateMany({ where: { userId: u.id, revokedAt: null }, data: { revokedAt: new Date() } }),
-      ]);
-      await this.audit.securityEvent('PIN_LOCKOUT_SIGNED_OUT', u.id, undefined, 'HIGH');
-    } else {
-      await this.prisma.user.update({ where: { id: u.id }, data: { pinFailedAttempts: failed } });
-    }
-    throw new UnauthorizedException({ code: 'invalid_pin', message: failed >= MAX_PIN_FAILS ? 'Too many attempts. Please sign in again.' : 'Incorrect PIN' });
   }
 
   // ───────── trusted devices ("remember this device") ─────────
