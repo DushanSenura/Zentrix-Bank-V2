@@ -24,6 +24,13 @@ export class ErrorFilter implements ExceptionFilter {
       });
       return;
     }
+    // Body-parser (not Nest) raises these for oversized or unreadable bodies; they are the client's mistake, not a server fault.
+    const e = ex as { status?: unknown; type?: unknown };
+    if (typeof e?.status === 'number' && e.status >= 400 && e.status < 500 && typeof e.type === 'string') {
+      const tooLarge = e.type === 'entity.too.large';
+      res.status(e.status).json({ code: tooLarge ? 'payload_too_large' : 'bad_request', message: tooLarge ? 'That request is too large' : 'The request could not be read', requestId });
+      return;
+    }
     this.log.error(`requestId=${requestId} ${ex instanceof Error ? ex.name : 'unknown'}`);
     res.status(500).json({ code: 'internal_error', message: 'Something went wrong on our side', requestId });
   }

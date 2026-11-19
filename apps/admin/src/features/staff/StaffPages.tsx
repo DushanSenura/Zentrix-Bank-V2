@@ -61,7 +61,7 @@ export function StaffPage() {
       <Err e={staff.error} />
       <div className="overflow-x-auto rounded-2xl bg-surface ring-1 ring-black/5">
         <table className="w-full text-left text-sm">
-          <thead className="text-muted"><tr>{['Name', 'Username', 'Roles', 'MFA', 'Status', 'Last sign-in', ''].map((h) => <th key={h} scope="col" className={th}>{h}</th>)}</tr></thead>
+          <thead className="text-muted"><tr>{['Name', 'Username', 'Roles', 'MFA', 'Status', 'Last sign-in', 'Actions'].map((h) => <th key={h} scope="col" className={th}>{h === 'Actions' ? <span className="sr-only">{h}</span> : h}</th>)}</tr></thead>
           <tbody>
             {staff.data?.items.map((s) => (
               <tr key={s.userId} className="border-t border-black/5 align-top">

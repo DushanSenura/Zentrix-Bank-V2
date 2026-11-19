@@ -1,21 +1,32 @@
-import type { ReactElement } from 'react'
+import { lazy, Suspense, type ComponentType, type ReactElement } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth'
-import AccountsPage from './features/accounts/AccountsPage'
-import AuditPage from './features/audit/AuditPage'
 import LoginPage from './features/auth/LoginPage'
-import { CustomerDetailPage, CustomersPage } from './features/customers/CustomersPage'
-import DashboardPage from './features/dashboard/DashboardPage'
-import KycPage from './features/kyc/KycPage'
-import OperationsPage from './features/operations/OperationsPage'
-import PaymentsPage from './features/payments/PaymentsPage'
-import { CardsAdminPage, DepositsAdminPage, LoansAdminPage } from './features/products/ProductAdminPages'
-import ReportsPage from './features/reports/ReportsPage'
-import SettingsPage from './features/settings/SettingsPage'
-import { RiskPage, SystemHealthPage } from './features/risk/RiskPage'
-import { BranchesPage, DisputesPage, TicketsPage } from './features/support/SupportPages'
-import { RolesPage, StaffPage } from './features/staff/StaffPages'
 import AdminLayout, { allowed } from './layouts/AdminLayout'
+
+// Each section is its own chunk, so signing in downloads only the shell and the page being opened.
+const page = <T extends Record<string, unknown>>(load: () => Promise<T>, name: keyof T & string) =>
+  lazy(async () => ({ default: (await load())[name] as ComponentType }))
+const AccountsPage = page(() => import('./features/accounts/AccountsPage'), 'default')
+const AuditPage = page(() => import('./features/audit/AuditPage'), 'default')
+const CustomersPage = page(() => import('./features/customers/CustomersPage'), 'CustomersPage')
+const CustomerDetailPage = page(() => import('./features/customers/CustomersPage'), 'CustomerDetailPage')
+const DashboardPage = page(() => import('./features/dashboard/DashboardPage'), 'default')
+const KycPage = page(() => import('./features/kyc/KycPage'), 'default')
+const OperationsPage = page(() => import('./features/operations/OperationsPage'), 'default')
+const PaymentsPage = page(() => import('./features/payments/PaymentsPage'), 'default')
+const CardsAdminPage = page(() => import('./features/products/ProductAdminPages'), 'CardsAdminPage')
+const DepositsAdminPage = page(() => import('./features/products/ProductAdminPages'), 'DepositsAdminPage')
+const LoansAdminPage = page(() => import('./features/products/ProductAdminPages'), 'LoansAdminPage')
+const ReportsPage = page(() => import('./features/reports/ReportsPage'), 'default')
+const SettingsPage = page(() => import('./features/settings/SettingsPage'), 'default')
+const RiskPage = page(() => import('./features/risk/RiskPage'), 'RiskPage')
+const SystemHealthPage = page(() => import('./features/risk/RiskPage'), 'SystemHealthPage')
+const BranchesPage = page(() => import('./features/support/SupportPages'), 'BranchesPage')
+const DisputesPage = page(() => import('./features/support/SupportPages'), 'DisputesPage')
+const TicketsPage = page(() => import('./features/support/SupportPages'), 'TicketsPage')
+const RolesPage = page(() => import('./features/staff/StaffPages'), 'RolesPage')
+const StaffPage = page(() => import('./features/staff/StaffPages'), 'StaffPage')
 
 /** Shows a clear "no access" page instead of a broken screen. The API still enforces the permission on every call. */
 function Guard({ any, children }: { any: string[]; children: ReactElement }) {
@@ -30,10 +41,12 @@ function Guard({ any, children }: { any: string[]; children: ReactElement }) {
 }
 
 const g = (any: string[], el: ReactElement) => <Guard any={any}>{el}</Guard>
+const Loading = () => <p role="status" className="p-6 text-muted">Loading…</p>
 
 export default function App() {
   return (
     <AuthProvider>
+      <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AdminLayout />}>
@@ -60,6 +73,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </AuthProvider>
   )
 }

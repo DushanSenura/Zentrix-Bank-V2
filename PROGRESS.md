@@ -98,5 +98,17 @@ NOT done / limits:
 * The AI help corpus is a short hand-written set of articles (English only); no staff escalation is automatic (the assistant offers a button to message the bank).
 * Admin UI and mobile screens still have never been opened in a real browser or on a device; GitHub Actions has still never run. Sinhala/Tamil wording from Phase 7 is still unreviewed.
 
-## Next: Phase 9 — Quality, security and performance
-Per the build prompt: full integration and end-to-end tests, authorization and isolation tests, concurrency/idempotency/failure-recovery tests, migration tests, accessibility and responsive checks, theme and reduced-motion checks, performance profiling, and dependency/security review.
+## Phase 9 — Quality, security, performance: DONE with listed gaps (verified 2026-11-20)
+Verified (after the last change): API 190 tests (15 new), worker 5, admin 41 (12 new), Flutter 89 (29 new); `pnpm typecheck`, `pnpm build`, `flutter analyze` clean; `pnpm audit` reports no known vulnerabilities. Details: `docs/testing/quality-and-security.md`.
+
+Defects found by the new checks and fixed: an oversized request body returned HTTP 500 instead of 413; the admin staff table had an empty column header; three mobile layouts overflowed at 2x text size (statement format picker, two dropdowns, a summary row); 10 foreign keys had no index (one a customer-facing list query) and the risk scan and spending queries had no index on posted date. Security headers were only applied in `main.ts`; they now live in shared app config so tests cover them. Two advisories needed dependency upgrades (zod 4, vitest 4); the zod upgrade changed no code and all 175 existing tests passed.
+
+NOT done / limits:
+* **No performance measurement beyond bundle size.** No load test, latency percentiles, or Flutter profiling on a device; query checks only prove an index exists. React render optimisation was limited to code-splitting.
+* **No external security assessment.** The route, isolation and hardening tests are mine and test what I thought to test; there was no penetration test, no fuzzing campaign and no review by someone else. Rate-limit behaviour under attack was not tested.
+* **Accessibility is partly automated only.** No screen-reader pass, no admin colour-contrast check, and the Flutter guideline checks cover the new screens, not every older one.
+* Responsive layouts, light/dark themes and animations were checked only through the above tests (themes in the mobile guideline tests, reduced motion on one chart); nothing was viewed on real screens or in a real browser. GitHub Actions has still never run. `pnpm.overrides` for three build-tool packages are a stopgap.
+* End-to-end tests across mobile, API and admin together do not exist; each layer is tested against fakes or the real API separately.
+
+## Next: Phase 10 — Deployment and release preparation
+Per the build prompt: environments, backups, secrets, staging, Android release build, iOS build preparation, monitoring, icons, documentation, release checklist, staging end-to-end tests and release notes. Production banking use stays out of scope.

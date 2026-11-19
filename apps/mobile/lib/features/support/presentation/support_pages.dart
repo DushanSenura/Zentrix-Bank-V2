@@ -156,11 +156,11 @@ class _StatementsPageState extends ConsumerState<StatementsPage> {
             GlassCard(blur: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               DropdownButtonFormField<String>(initialValue: selected, isExpanded: true, decoration: const InputDecoration(labelText: 'Account'), items: [for (final a in list) DropdownMenuItem(value: a.id, child: Text('${a.title} ${a.maskedNumber}', overflow: TextOverflow.ellipsis))], onChanged: (v) => setState(() => _account = v)),
               const SizedBox(height: ZxSpace.md),
-              DropdownButtonFormField<int>(initialValue: _days, decoration: const InputDecoration(labelText: 'Period'), items: const [DropdownMenuItem(value: 30, child: Text('Last 30 days')), DropdownMenuItem(value: 90, child: Text('Last 90 days')), DropdownMenuItem(value: 365, child: Text('Last 12 months'))], onChanged: (v) => setState(() => _days = v ?? 30)),
+              DropdownButtonFormField<int>(initialValue: _days, isExpanded: true, decoration: const InputDecoration(labelText: 'Period'), items: const [DropdownMenuItem(value: 30, child: Text('Last 30 days')), DropdownMenuItem(value: 90, child: Text('Last 90 days')), DropdownMenuItem(value: 365, child: Text('Last 12 months'))], onChanged: (v) => setState(() => _days = v ?? 30)),
               const SizedBox(height: ZxSpace.md),
-              DropdownButtonFormField<String>(initialValue: _lang, decoration: const InputDecoration(labelText: 'Language'), items: [for (final e in statementLanguages.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: (v) => setState(() => _lang = v ?? 'en')),
+              DropdownButtonFormField<String>(initialValue: _lang, isExpanded: true, decoration: const InputDecoration(labelText: 'Language'), items: [for (final e in statementLanguages.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: (v) => setState(() => _lang = v ?? 'en')),
               const SizedBox(height: ZxSpace.md),
-              SegmentedButton<String>(segments: const [ButtonSegment(value: 'pdf', label: Text('PDF')), ButtonSegment(value: 'csv', label: Text('CSV (spreadsheet)'))], selected: {_format}, onSelectionChanged: (s) => setState(() => _format = s.first)),
+              Wrap(spacing: ZxSpace.sm, children: [for (final (label, value) in const [('PDF', 'pdf'), ('CSV (spreadsheet)', 'csv')]) ChoiceChip(label: Text(label), selected: _format == value, onSelected: (_) => setState(() => _format = value))]),
               const SizedBox(height: ZxSpace.lg),
               ZxButton(label: _busy ? 'Preparing…' : 'Download and share', onPressed: _busy || selected == null ? null : () => _download(selected)),
               if (_error != null) ZxErrorText(_error!),
@@ -368,7 +368,7 @@ class _NewTicketPageState extends ConsumerState<NewTicketPage> {
         title: 'New request',
         body: ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
           GlassCard(blur: false, child: Column(children: [
-            DropdownButtonFormField<String>(initialValue: _category, decoration: const InputDecoration(labelText: 'Topic'), items: [for (final e in ticketCategories.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: (v) => setState(() => _category = v ?? 'GENERAL')),
+            DropdownButtonFormField<String>(initialValue: _category, isExpanded: true, decoration: const InputDecoration(labelText: 'Topic'), items: [for (final e in ticketCategories.entries) DropdownMenuItem(value: e.key, child: Text(e.value))], onChanged: (v) => setState(() => _category = v ?? 'GENERAL')),
             const SizedBox(height: ZxSpace.md),
             TextField(controller: _subject, maxLength: 120, decoration: const InputDecoration(labelText: 'Subject')),
             TextField(controller: _message, maxLines: 5, maxLength: 2000, decoration: const InputDecoration(labelText: 'Message')),

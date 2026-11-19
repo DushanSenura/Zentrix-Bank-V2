@@ -118,6 +118,7 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model UserRole {
@@ -127,6 +128,7 @@ model UserRole {
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
+  @@index([roleId])
 }
 
 model Session {
@@ -194,6 +196,7 @@ model SecurityEvent {
   user      User?    @relation(fields: [userId], references: [id])
 
   @@index([kind, createdAt])
+  @@index([userId])
 }
 
 // ───────────────────────── Accounts ─────────────────────────
@@ -251,6 +254,7 @@ model Account {
   statusHistory  AccountStatusHistory[]
 
   @@index([customerId, status])
+  @@index([productId])
 }
 
 model AccountStatusHistory {
@@ -283,6 +287,8 @@ model AccountApplication {
   product          AccountProduct    @relation(fields: [productId], references: [id])
 
   @@index([status, createdAt])
+  @@index([customerId])
+  @@index([productId])
 }
 
 model Beneficiary {
@@ -425,6 +431,8 @@ model PaymentInstruction {
   @@index([initiatorId, createdAt])
   @@index([sourceAccountId, createdAt])
   @@index([status, scheduledFor])
+  @@index([status, postedAt])
+  @@index([initiatorId, status, postedAt])
 }
 
 model PaymentAuthorization {
@@ -435,6 +443,7 @@ model PaymentAuthorization {
   verifiedAt  DateTime?
   expiresAt   DateTime
   payment     PaymentInstruction @relation(fields: [paymentId], references: [id])
+  @@index([paymentId])
 }
 
 model IdempotencyRecord {
@@ -680,6 +689,7 @@ model FixedDepositRenewal {
   newMaturityDate   DateTime
   createdAt         DateTime     @default(now())
   fixedDeposit      FixedDeposit @relation(fields: [fixedDepositId], references: [id])
+  @@index([fixedDepositId])
 }
 
 model FixedDepositClosureRequest {
@@ -697,6 +707,7 @@ model FixedDepositClosureRequest {
   fixedDeposit   FixedDeposit @relation(fields: [fixedDepositId], references: [id])
 
   @@index([status, createdAt])
+  @@index([fixedDepositId])
 }
 
 model LoanProduct {
@@ -782,6 +793,7 @@ model LoanPayment {
   interestMinor  BigInt
   createdAt      DateTime @default(now())
   loan           Loan     @relation(fields: [loanId], references: [id])
+  @@index([loanId])
 }
 
 model SavingsGoal {

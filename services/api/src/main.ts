@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 import { loadEnv } from './config/env';
@@ -16,7 +15,6 @@ async function bootstrap() {
   const env = loadEnv();
   const app = await NestFactory.create(AppModule);
 
-  app.use(helmet());
   app.enableCors({
     origin: env.API_CORS_ORIGINS.split(',').map((s) => s.trim()),
     credentials: true,
