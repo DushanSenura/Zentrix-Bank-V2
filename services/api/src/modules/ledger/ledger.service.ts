@@ -51,6 +51,7 @@ export const SYSTEM_ACCOUNTS = {
   feeIncome: { code: 'SYS-FEE-INCOME-LKR', name: 'Fee income (LKR)', type: 'INCOME', allowNegative: false },
   billers: { code: 'SYS-BILLERS-LKR', name: 'Biller settlement (LKR, simulated)', type: 'ASSET', allowNegative: true },
   interbank: { code: 'SYS-INTERBANK-LKR', name: 'Interbank settlement (LKR, simulated)', type: 'ASSET', allowNegative: true },
+  adjustments: { code: 'SYS-ADJUSTMENT-LKR', name: 'Controlled adjustments (LKR)', type: 'EXPENSE', allowNegative: true },
   interestIncome: { code: 'SYS-INTEREST-INCOME-LKR', name: 'Interest income (LKR)', type: 'INCOME', allowNegative: false },
   interestExpense: { code: 'SYS-INTEREST-EXPENSE-LKR', name: 'Interest expense (LKR)', type: 'EXPENSE', allowNegative: true },
 } as const;

@@ -51,6 +51,28 @@ export async function api<T>(path: string, init: RequestInit = {}, auth = true):
   return body as T
 }
 
+/** Authenticated text download (CSV exports). Refreshes the token once like api(). */
+export async function apiText(path: string): Promise<string> {
+  let res = await raw(path)
+  if (res.status === 401 && (await refresh())) res = await raw(path)
+  if (res.status === 401) onSessionLost()
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiError(res.status, body.code ?? 'error', body.message ?? 'Export failed', body.fields)
+  }
+  return res.text()
+}
+
+/** Saves text as a file in the browser (no server round trip, nothing is cached). */
+export function saveTextFile(filename: string, text: string, type = 'text/csv') {
+  const url = URL.createObjectURL(new Blob([text], { type }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /** Reads API readiness (public endpoint). */
 export async function fetchHealth(): Promise<HealthResult> {
   const res = await fetch('/api/v1/health')

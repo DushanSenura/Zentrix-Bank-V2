@@ -14,3 +14,10 @@
 
 ## Known limitations
 TOTP replay within a 30 s window is not blocked; no document image upload (object storage later); no staff provisioning/role-edit endpoints yet (Phase 6), so there is no self-escalation path; rate limiting is in-memory per process (move to Redis before scaling out); the mobile PIN is only stored server-side so far - server-verified step-up for payments is Phase 4.
+
+## Administration controls (Phase 6)
+* **Escalation guards (server-side):** a staff member can grant only roles/permissions they hold; cannot change their own access; cannot manage anyone whose permissions exceed their own; the Super Administrator role is immutable and the last active Super Administrator cannot be demoted or deactivated.
+* **Two-person rules:** loan disbursement, payment reversals and ledger adjustments need a different staff member to approve (code check + database CHECK). Violations are recorded as HIGH security events.
+* **Invitations:** staff accounts start with an unusable random password; a single-use 72 h token lets the invitee set a password and receive their TOTP secret once. The token is only echoed in development.
+* **Exports:** CSV is capped (5,000 rows), permission-gated, neutralises spreadsheet formulas, omits detail fields and is audited.
+* **Maintenance mode** pauses customer sessions (503) but never staff or health checks.

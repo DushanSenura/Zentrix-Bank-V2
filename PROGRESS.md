@@ -58,7 +58,19 @@ NOT done / limits:
 * **Savings/finance:** no scheduled contributions, recurring-expense/subscription detection, category editing, cash-flow forecast or insights (Phase 8). Budgets count posted payments only.
 * Mobile services screens and admin product pages have never run on a device/browser; no UI test for the date-sensitive flows. GitHub Actions still never run (CI env lacks INTERNAL_JOB_TOKEN; tests set their own).
 
-## Next: Phase 6 — Administration portal
-1. Dashboard KPIs from real aggregates; customer 360 (profile, accounts, KYC docs view), customer search/suspend/restore.
-2. Staff management (provisioning, role/permission editing without self-escalation, session revocation), audit log viewer, settings (fees, limits, rates, maintenance mode).
-3. Reversal/adjustment workflow with maker-checker; reconciliation page; disputes queue stub for Phase 7.
+## Phase 6 — Administration portal: DONE with listed gaps (verified 2026-11-19)
+Verified: API 134 tests (11 new, real Postgres), admin 21 (13 new), worker 3, Flutter 42 unchanged, typecheck/build clean. **Backend:** permission-scoped dashboard from real aggregates (a section appears only if the caller holds its permission; liabilities equal the ledger sum); customer search with keyset pagination, customer 360 (national ID masked, no secrets), suspend/restore that signs the customer out immediately and never skips verification; staff invitation with single-use setup + MFA enrolment, role editing, deactivate/activate, session revoke, login history; role/permission editor; **escalation guards** (grant only what you hold, never edit yourself, never manage someone more privileged, last Super Admin protected in code, Super Admin role immutable); audit log with filters, cursor paging and a capped, formula-safe CSV export that is itself audited and excludes detail fields; whitelisted, validated, audited policy settings that take effect on the next request (fees, limits, caps, penalty); **maintenance mode** (customers get 503 `maintenance`, staff and health unaffected, public `/system/status`); three reports with range validation and CSV; **reversals and adjustments** with maker-checker (opposite journal / system-account journal, capped, failed ledger application leaves the request pending). **Admin UI:** sidebar with permission-aware navigation and breadcrumbs, route guards, dashboard with Recharts, customers + 360, staff, roles matrix, audit, settings, ledger operations, reports, reversal request from Transactions. **Live run on the dev DB:** invitation → setup → login, escalation refused, maker approves own → 403, checker approves → balance +1000, maintenance on/off, audit export, reconciliation clean, temp staff deactivated.
+
+Defects found by tests this phase: report column label split "LKR" into "L K R"; the sidebar landmark was not a labelled navigation.
+
+NOT done / limits:
+* **Not opened in a real browser.** The admin UI was verified with jsdom tests and a successful production build only. (An attempt to drive a browser sign-in was blocked because I had printed a seeded credential; I did not work around it.) No visual QA, responsive/dark-mode check or axe audit has been run.
+* No identity-document viewer (documents are not stored yet), customer support cases/notes, branch management, account product configuration UI, product/loan product editing, notification templates and announcements (Phase 7/8), risk alert queue and rules (Phase 8), PDF exports, secondary authorisation beyond loans/reversals/adjustments (account closure, rate changes and permission edits are audited but single-approver), email delivery of invitations (outbox event only; token echoed in development).
+* The last-Super-Admin guard is implemented but not exercised by a test (the shared test DB always has several). Role permission changes apply on the next request; no maker-checker on role edits.
+* Admin tokens are still held in memory only (re-login after reload). The mobile app shows the server's maintenance message in its normal error view; there is no dedicated full-screen maintenance gate yet.
+* GitHub Actions still never run.
+
+## Next: Phase 7 — Advanced banking services
+1. Disputes (customer report → staff queue → decision), support tickets and secure messages, branch/ATM finder and appointments.
+2. Statements (PDF with Unicode fonts + CSV), receipts PDF, account certificates, transaction history search/filter.
+3. Payment requests, templates, subscriptions/recurring detection; object-storage abstraction for documents.

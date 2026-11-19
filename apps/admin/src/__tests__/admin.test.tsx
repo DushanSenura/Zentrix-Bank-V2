@@ -75,7 +75,8 @@ describe('transaction monitoring', () => {
     recipient: { name: 'Nuwan Silva', bank: 'Zentrix Bank', accountMasked: '*******9876' }, customerName: 'Amaya Perera', customerNumber: 'ZB90000001',
     createdAt: '2026-03-01T10:00:00Z', postedAt: '2026-03-01T10:00:05Z', failureCode: null, ...over,
   })
-  const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><PaymentsPage /></QueryClientProvider>)
+  const viewer: AuthState = { me: { id: 's', type: 'STAFF', username: 's', permissions: ['transactions.read'] }, login: async () => {}, logout: async () => {}, can: (p) => p === 'transactions.read' }
+  const renderPage = () => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AuthContext.Provider value={viewer}><PaymentsPage /></AuthContext.Provider></QueryClientProvider>)
 
   it('lists ledger-backed payments with formatted amounts and filters by status through the API', async () => {
     const urls: string[] = []

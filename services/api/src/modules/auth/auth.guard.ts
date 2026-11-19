@@ -1,8 +1,9 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuditService } from '../../common/audit.service';
 import { PrismaService } from '../../common/prisma.service';
 import { AUTH_RULES, type AuthRules, type AuthUser, IS_PUBLIC } from './auth.decorators';
+import { MaintenanceService } from '../admin/settings.service';
 import { TokenService } from './token.service';
 
 /** Global guard: every route requires a valid, non-revoked session unless marked @Public(). */
@@ -13,6 +14,7 @@ export class AuthGuard implements CanActivate {
     private readonly tokens: TokenService,
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly maintenance: MaintenanceService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -43,6 +45,12 @@ export class AuthGuard implements CanActivate {
       permissions: new Set(u.roles.flatMap((r) => r.role.permissions.map((p) => p.permission.key))),
     };
     req.user = user;
+
+    // Maintenance mode: customers are paused; staff keep working so they can end it.
+    if (user.type === 'CUSTOMER') {
+      const m = await this.maintenance.status();
+      if (m.enabled) throw new ServiceUnavailableException({ code: 'maintenance', message: m.message });
+    }
 
     const rules = this.reflector.getAllAndOverride<AuthRules | undefined>(AUTH_RULES, targets);
     if (rules) {
