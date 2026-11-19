@@ -10,6 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { loadEnv } from './config/env';
 import { encrypt } from './security/crypto';
 import { hashSecret } from './security/password';
+import { DEFAULT_RATES } from './modules/deposits/deposits.service';
+import { DEFAULT_LOAN_PRODUCTS } from './modules/loans/loans.service';
 import { LedgerService } from './modules/ledger/ledger.service';
 import { PrismaService } from './common/prisma.service';
 import { PERMISSIONS, ROLE_GRANTS } from './security/rbac';
@@ -39,6 +41,16 @@ async function main() {
   // Account products (bank-configurable defaults carried over from V1: LKR 1,000 minimum opening deposit).
   await prisma.accountProduct.upsert({ where: { code: 'SAVINGS_STD' }, update: {}, create: { code: 'SAVINGS_STD', name: 'Savings Account', kind: 'SAVINGS', minOpeningMinor: 100000n, interestRateBps: 350 } });
   await prisma.accountProduct.upsert({ where: { code: 'CURRENT_STD' }, update: {}, create: { code: 'CURRENT_STD', name: 'Current Account', kind: 'CURRENT', minOpeningMinor: 100000n } });
+  // Fixed-deposit rate card (sample figures), loan products (sample) and a few fictional branches/ATMs.
+  for (const r of DEFAULT_RATES) await prisma.fixedDepositRate.upsert({ where: { termMonths: r.termMonths }, update: {}, create: { termMonths: r.termMonths, rateBps: r.rateBps } });
+  for (const p of DEFAULT_LOAN_PRODUCTS) await prisma.loanProduct.upsert({ where: { code: p.code }, update: {}, create: p });
+  const branches = [
+    { code: 'COL-FORT', name: 'Colombo Fort', city: 'Colombo', address: '1 Sample Street, Fort', type: 'BRANCH', latitude: 6.9344, longitude: 79.8428 },
+    { code: 'KDY-MAIN', name: 'Kandy City', city: 'Kandy', address: '22 Sample Road', type: 'BRANCH', latitude: 7.2906, longitude: 80.6337 },
+    { code: 'GLE-MAIN', name: 'Galle', city: 'Galle', address: '5 Sample Lane', type: 'BRANCH', latitude: 6.0535, longitude: 80.221 },
+    { code: 'COL-ATM1', name: 'Colombo Fort ATM', city: 'Colombo', address: 'Fort Railway Station', type: 'ATM', latitude: 6.9335, longitude: 79.85 },
+  ];
+  for (const b of branches) await prisma.branch.upsert({ where: { code: b.code }, update: {}, create: b });
   console.log(`RBAC seeded: ${Object.keys(PERMISSIONS).length} permissions, ${Object.keys(ROLE_GRANTS).length} roles`);
 
   if (env.APP_ENV !== 'development') {

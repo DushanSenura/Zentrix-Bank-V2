@@ -8,6 +8,9 @@ interface AuthState {
   can: (permission: string) => boolean
 }
 const Ctx = createContext<AuthState | null>(null)
+/** Exported so tests can supply a staff identity without a network login. */
+export const AuthContext = Ctx
+export type { AuthState }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)

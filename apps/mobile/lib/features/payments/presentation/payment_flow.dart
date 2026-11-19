@@ -280,6 +280,9 @@ class ReceiptPage extends ConsumerWidget {
 
 final _paymentProvider = FutureProvider.autoDispose.family<Payment, String>((ref, id) => ref.watch(paymentsRepositoryProvider).get(id), retry: (_, _) => null);
 
+/// Asks for the app PIN in a bottom sheet. The PIN is verified by the bank, never by the app.
+Future<String?> askPin(BuildContext context) => showModalBottomSheet<String>(context: context, isScrollControlled: true, builder: (_) => const _PinSheet());
+
 class _PinSheet extends StatefulWidget {
   const _PinSheet();
   @override

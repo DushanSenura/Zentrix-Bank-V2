@@ -8,6 +8,9 @@ import { ZodPipe } from '../../common/zod.pipe';
 import { ENV, type Env } from '../../config/env';
 import { AccountsService } from '../accounts/accounts.service';
 import { CurrentUser, CustomerOnly, Public, StaffWith, type AuthUser } from '../auth/auth.decorators';
+import { CardsService } from '../cards/cards.service';
+import { DepositsService } from '../deposits/deposits.service';
+import { LoansService } from '../loans/loans.service';
 import { BeneficiariesService } from './beneficiaries.service';
 import { BILLERS, encodeQr, SIMULATED_BANKS } from './catalog';
 import { PaymentsService } from './payments.service';
@@ -20,6 +23,7 @@ const destination = z.discriminatedUnion('type', [
   z.object({ type: z.literal('INTERBANK'), bankCode: z.string().max(40), accountNumber: z.string().regex(/^\d{8,16}$/), holderName: z.string().trim().min(2).max(80) }),
   z.object({ type: z.literal('BILL'), billerCode: z.string().max(40), billRef: z.string().trim().min(3).max(40) }),
   z.object({ type: z.literal('QR'), payload: z.string().max(100) }),
+  z.object({ type: z.literal('LOAN'), loanId: z.string().uuid() }),
 ]);
 // .strict(): a client-supplied "fee", "balance" or "status" is REJECTED, not silently ignored.
 const createSchema = z.object({
@@ -125,7 +129,13 @@ export class AdminPaymentsController {
 @ApiTags('internal')
 @Controller({ path: 'internal/jobs', version: '1' })
 export class InternalJobsController {
-  constructor(private readonly payments: PaymentsService, @Inject(ENV) private readonly env: Env) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly cards: CardsService,
+    private readonly deposits: DepositsService,
+    private readonly loans: LoansService,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
 
   @Public() @Post('run-due') @HttpCode(200)
   async runDue(@Headers('x-internal-token') token?: string) {
@@ -134,6 +144,16 @@ export class InternalJobsController {
     const a = Buffer.from(token ?? '');
     const b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) throw new UnauthorizedException({ code: 'unauthenticated', message: 'Invalid token' });
-    return this.payments.runDue();
+    // Each job is independent: one failing must never stop the others. Failures are counted, not hidden.
+    const safe = async <T>(f: () => Promise<T>, fallback: T, errors: string[], name: string): Promise<T> => {
+      try { return await f(); } catch { errors.push(name); return fallback; }
+    };
+    const errors: string[] = [];
+    const now = new Date();
+    const pay = await safe(() => this.payments.runDue(now), { expired: 0, recurringCreated: 0, executed: 0, failed: 0 }, errors, 'payments');
+    const cardsReady = await safe(() => this.cards.runDue(now), 0, errors, 'cards');
+    const dep = await safe(() => this.deposits.runDue(now), { matured: 0, renewed: 0, failed: 0 }, errors, 'deposits');
+    const loan = await safe(() => this.loans.runDue(now), { overdue: 0, reminders: 0 }, errors, 'loans');
+    return { ...pay, cardsReady, depositsMatured: dep.matured, depositsRenewed: dep.renewed, depositsFailed: dep.failed, loansOverdue: loan.overdue, loanReminders: loan.reminders, errors };
   }
 }

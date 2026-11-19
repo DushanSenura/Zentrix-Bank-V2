@@ -95,6 +95,7 @@ class AccountsHome extends ConsumerWidget {
                     const SizedBox(height: ZxSpace.sm),
                     OutlinedButton.icon(onPressed: () => context.push('/accounts/open'), icon: const Icon(Icons.add), label: const Text('Open another account')),
                   ],
+                  OutlinedButton.icon(onPressed: () => context.push('/services'), icon: const Icon(Icons.apps), label: const Text('Cards, deposits, loans & savings')),
                   TextButton(onPressed: () => context.push('/applications'), child: const Text('Account applications')),
                 ]),
               ),

@@ -2,7 +2,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AuthProvider } from '../auth'
+import { AuthContext, AuthProvider, type AuthState } from '../auth'
+import { CardsAdminPage, DepositsAdminPage, LoansAdminPage } from '../features/products/ProductAdminPages'
 import LoginPage from '../features/auth/LoginPage'
 import PaymentsPage from '../features/payments/PaymentsPage'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -95,5 +96,77 @@ describe('transaction monitoring', () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(403, { code: 'forbidden', message: 'You do not have access to this resource' })))
     renderPage()
     expect(await screen.findByRole('alert')).toHaveTextContent(/do not have access/i)
+  })
+})
+
+describe('product administration', () => {
+  const staff = (id: string, perms: string[]): AuthState => ({ me: { id, type: 'STAFF', username: id, permissions: perms }, login: async () => {}, logout: async () => {}, can: (p) => perms.includes(p) })
+  const mount = (ui: React.ReactElement, auth: AuthState) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><AuthContext.Provider value={auth}>{ui}</AuthContext.Provider></QueryClientProvider>)
+
+  it('loan approvals: the maker cannot decide their own recommendation, another approver can', async () => {
+    const calls: string[] = []
+    const approval = { id: 'ap1', requestedBy: 'maker-1', requestedByName: 'Maker One', customerName: 'Amaya Perera', terms: { amountMinor: '25000000', termMonths: 6, rateBps: 1450, conditions: 'Salary slip on file' } }
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      if (url.includes('/loan-approvals/ap1/decision')) return json(201, { status: 'APPROVED' })
+      if (url.includes('/loan-approvals')) return json(200, { items: [approval] })
+      return json(200, { items: [] })
+    }))
+    const maker = mount(<LoansAdminPage />, staff('maker-1', ['loans.review', 'loans.approve']))
+    expect(await screen.findByText(/LKR 250,000.00/)).toBeInTheDocument()
+    expect(screen.getByText(/another approver must decide it/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve & disburse/i })).toBeDisabled()
+    maker.unmount()
+
+    const user = userEvent.setup()
+    mount(<LoansAdminPage />, staff('checker-2', ['loans.review', 'loans.approve']))
+    const approve = await screen.findByRole('button', { name: /approve & disburse/i })
+    expect(approve).toBeEnabled()
+    await user.click(approve)
+    await waitFor(() => expect(calls.some((c) => c === 'POST /api/v1/admin/loan-approvals/ap1/decision')).toBe(true))
+  })
+
+  it('credit card approval requires a staff-set limit before anything is sent', async () => {
+    const calls: { url: string; body?: string }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body as string | undefined })
+      if (url.includes('/decision')) return json(201, { status: 'PREPARING' })
+      return json(200, { items: [{ id: 'c1', kind: 'CREDIT', status: 'PENDING_APPROVAL', createdAt: '2026-03-01T00:00:00Z', customerName: 'Amaya Perera', customerNumber: 'ZB1', replacement: false, last4: null, application: { monthlyIncomeMinor: 25000000, employment: 'Engineer', requestedLimitMinor: 20000000 } }] })
+    }))
+    const user = userEvent.setup()
+    mount(<CardsAdminPage />, staff('s1', ['cards.review']))
+    await user.click(await screen.findByRole('button', { name: /^approve$/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/credit limit/i)
+    expect(calls.some((c) => c.url.includes('/decision'))).toBe(false)
+    await user.type(screen.getByLabelText(/credit limit/i), '150000.00')
+    await user.click(screen.getByRole('button', { name: /^approve$/i }))
+    await waitFor(() => expect(calls.some((c) => c.url.includes('/decision'))).toBe(true))
+    expect(JSON.parse(calls.find((c) => c.url.includes('/decision'))!.body!)).toMatchObject({ decision: 'APPROVE', creditLimitMinor: 15000000 })
+  })
+
+  it('rate card: editing needs the settings permission and sends basis points', async () => {
+    const calls: { method: string; url: string; body?: string }[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url, body: init?.body as string | undefined })
+      if (url.includes('fixed-deposit-rates')) return init?.method === 'PUT' ? json(200, {}) : json(200, { items: [{ termMonths: 12, rateBps: 900, minAmountMinor: 1000000, active: true }] })
+      return json(200, { items: [] })
+    }))
+    const view = mount(<DepositsAdminPage />, staff('viewer', ['deposits.manage']))
+    expect(await screen.findByText('9.00')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /save/i })).toBeNull() // no settings permission: read-only
+    view.unmount()
+
+    const user = userEvent.setup()
+    mount(<DepositsAdminPage />, staff('admin', ['deposits.manage', 'settings.manage']))
+    const field = await screen.findByLabelText(/rate for 12 months/i)
+    await user.clear(field)
+    await user.type(field, '9.75')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    expect(JSON.parse(calls.find((c) => c.method === 'PUT')!.body!)).toEqual({ termMonths: 12, rateBps: 975 })
+    await user.clear(field)
+    await user.type(field, '99')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/between 0 and 50/i)
   })
 })

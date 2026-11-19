@@ -550,3 +550,259 @@ model ScheduledPayment {
   @@index([active, nextRunAt])
   @@index([customerId])
 }
+
+// ───────────────────────── Phase 5: cards, deposits, loans, savings ─────────────────────────
+
+enum CardKind {
+  DEBIT
+  VIRTUAL
+  CREDIT
+}
+
+enum CardStatus {
+  PENDING_APPROVAL
+  PREPARING
+  READY_TO_COLLECT
+  ACTIVE
+  FROZEN
+  BLOCKED
+  REJECTED
+}
+
+model Branch {
+  id        String  @id @default(uuid()) @db.Uuid
+  code      String  @unique
+  name      String
+  city      String
+  address   String
+  type      String  @default("BRANCH") // BRANCH | ATM
+  latitude  Float?
+  longitude Float?
+  active    Boolean @default(true)
+}
+
+/// NEVER holds a full card number or CVV. token is the simulated issuer reference; the PIN is an Argon2id hash
+/// standing in for the issuer HSM.
+model Card {
+  id                 String      @id @default(uuid()) @db.Uuid
+  customerId         String      @db.Uuid
+  accountId          String      @db.Uuid
+  kind               CardKind
+  network            String      @default("VISA")
+  status             CardStatus  @default(PENDING_APPROVAL)
+  holderName         String
+  last4              String?
+  expiryMonth        Int?
+  expiryYear         Int?
+  token              String?     @unique
+  pinHash            String?
+  collectionBranchId String?     @db.Uuid
+  readyOn            DateTime?
+  creditLimitMinor   BigInt?
+  application        Json?
+  decisionReason     String?
+  decidedById        String?     @db.Uuid
+  decidedAt          DateTime?
+  activatedAt        DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  controls           CardControls?
+  history            CardStatusHistory[]
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+}
+
+model CardControls {
+  cardId               String  @id @db.Uuid
+  dailyLimitMinor      BigInt  @default(10000000)
+  onlineEnabled        Boolean @default(true)
+  internationalEnabled Boolean @default(false)
+  contactlessEnabled   Boolean @default(true)
+  card                 Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+}
+
+model CardStatusHistory {
+  id         String      @id @default(uuid()) @db.Uuid
+  cardId     String      @db.Uuid
+  fromStatus CardStatus?
+  toStatus   CardStatus
+  reasonCode String
+  actorId    String?     @db.Uuid
+  createdAt  DateTime    @default(now())
+  card       Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt])
+}
+
+model FixedDepositRate {
+  id             String   @id @default(uuid()) @db.Uuid
+  termMonths     Int      @unique
+  rateBps        Int
+  minAmountMinor BigInt   @default(1000000)
+  active         Boolean  @default(true)
+  updatedBy      String?  @db.Uuid
+  updatedAt      DateTime @updatedAt
+}
+
+model FixedDeposit {
+  id                     String   @id @default(uuid()) @db.Uuid
+  reference              String   @unique
+  customerId             String   @db.Uuid
+  fundingAccountId       String   @db.Uuid
+  ledgerAccountId        String   @unique @db.Uuid
+  originalPrincipalMinor BigInt
+  principalMinor         BigInt // current principal (grows when renewed with interest)
+  rateBps                Int
+  termMonths             Int
+  startDate              DateTime
+  maturityDate           DateTime
+  renewal                String // WITH_INTEREST | WITHOUT_INTEREST | PAYOUT
+  status                 String   @default("ACTIVE") // ACTIVE | MATURED | CLOSED
+  renewalCount           Int      @default(0)
+  createdAt              DateTime @default(now())
+
+  renewals               FixedDepositRenewal[]
+  closureRequests        FixedDepositClosureRequest[]
+
+  @@index([customerId, status])
+  @@index([status, maturityDate])
+}
+
+model FixedDepositRenewal {
+  id                String       @id @default(uuid()) @db.Uuid
+  fixedDepositId    String       @db.Uuid
+  interestMinor     BigInt
+  newPrincipalMinor BigInt
+  newMaturityDate   DateTime
+  createdAt         DateTime     @default(now())
+  fixedDeposit      FixedDeposit @relation(fields: [fixedDepositId], references: [id])
+}
+
+model FixedDepositClosureRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  fixedDepositId String       @db.Uuid
+  customerId     String       @db.Uuid
+  status         String       @default("PENDING") // PENDING | APPROVED | REJECTED
+  reason         String?
+  decisionReason String?
+  decidedById    String?      @db.Uuid
+  decidedAt      DateTime?
+  payoutMinor    BigInt?
+  penaltyMinor   BigInt?
+  createdAt      DateTime     @default(now())
+  fixedDeposit   FixedDeposit @relation(fields: [fixedDepositId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model LoanProduct {
+  id             String  @id @default(uuid()) @db.Uuid
+  code           String  @unique
+  name           String
+  minAmountMinor BigInt
+  maxAmountMinor BigInt
+  minTermMonths  Int
+  maxTermMonths  Int
+  rateBps        Int
+  active         Boolean @default(true)
+}
+
+model LoanApplication {
+  id                    String    @id @default(uuid()) @db.Uuid
+  customerId            String    @db.Uuid
+  productId             String    @db.Uuid
+  amountMinor           BigInt
+  termMonths            Int
+  monthlyIncomeMinor    BigInt
+  employment            String
+  purpose               String?
+  disbursementAccountId String    @db.Uuid
+  status                String    @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | DISBURSED | CANCELLED
+  assessment            Json?
+  decisionReason        String?
+  decidedById           String?   @db.Uuid
+  decidedAt             DateTime?
+  approvalRequestId     String?   @db.Uuid
+  loanId                String?   @db.Uuid
+  createdAt             DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([customerId])
+}
+
+model Loan {
+  id                    String    @id @default(uuid()) @db.Uuid
+  reference             String    @unique
+  applicationId         String    @unique @db.Uuid
+  customerId            String    @db.Uuid
+  productId             String    @db.Uuid
+  principalMinor        BigInt
+  rateBps               Int
+  termMonths            Int
+  status                String    @default("ACTIVE") // ACTIVE | CLOSED
+  disbursementAccountId String    @db.Uuid
+  ledgerAccountId       String    @unique @db.Uuid // ASSET account whose balance is the outstanding principal
+  startDate             DateTime
+  closedAt              DateTime?
+  createdAt             DateTime  @default(now())
+
+  schedule              LoanRepaymentSchedule[]
+  payments              LoanPayment[]
+
+  @@index([customerId, status])
+}
+
+model LoanRepaymentSchedule {
+  id                 String   @id @default(uuid()) @db.Uuid
+  loanId             String   @db.Uuid
+  instalmentNo       Int
+  dueDate            DateTime
+  principalMinor     BigInt
+  interestMinor      BigInt
+  paidPrincipalMinor BigInt   @default(0)
+  paidInterestMinor  BigInt   @default(0)
+  status             String   @default("DUE") // DUE | PARTIAL | PAID | OVERDUE
+  reminderSent       Boolean  @default(false)
+  loan               Loan     @relation(fields: [loanId], references: [id])
+
+  @@unique([loanId, instalmentNo])
+  @@index([status, dueDate])
+}
+
+model LoanPayment {
+  id             String   @id @default(uuid()) @db.Uuid
+  loanId         String   @db.Uuid
+  paymentId      String?  @unique @db.Uuid
+  amountMinor    BigInt
+  principalMinor BigInt
+  interestMinor  BigInt
+  createdAt      DateTime @default(now())
+  loan           Loan     @relation(fields: [loanId], references: [id])
+}
+
+model SavingsGoal {
+  id              String    @id @default(uuid()) @db.Uuid
+  customerId      String    @db.Uuid
+  name            String
+  targetMinor     BigInt
+  targetDate      DateTime?
+  status          String    @default("ACTIVE") // ACTIVE | ACHIEVED | CLOSED
+  ledgerAccountId String    @unique @db.Uuid // LIABILITY account: the saved balance of the goal
+  createdAt       DateTime  @default(now())
+
+  @@index([customerId, status])
+}
+
+model Budget {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @db.Uuid
+  category   String
+  limitMinor BigInt
+  alertLevel Int      @default(0) // highest threshold already notified this month: 0 | 80 | 100
+  alertMonth String? // YYYY-MM the alertLevel refers to
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, category])
+}

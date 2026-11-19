@@ -46,7 +46,19 @@ NOT done / limits:
 * Mobile: QR scanner and My QR screens, date picker and repeat UI are not covered by widget tests and have never run on a camera/device. Admin payments page is read-only.
 * Worker is triggered by BullMQ every 30 s (so a scheduled payment runs within ~30 s of due time). GitHub Actions still never run; CI env lacks INTERNAL_JOB_TOKEN (payment tests set it themselves).
 
-## Next: Phase 5 — Cards, loans, deposits, savings
-1. Cards: requests (debit/virtual/credit application), staff approval queue, activation, freeze/limits/controls, card status history.
-2. Fixed deposits (products/rates, open via ledger, maturity job), loans (applications, staff decision with maker-checker, disbursement, schedule, instalment payments via the payment pipeline), savings goals and budgets.
-3. Scenarios C, D, E.
+## Phase 5 — Cards, loans, deposits, savings: DONE with listed gaps (verified 2026-11-19)
+Verified: API 123 tests (60 new; real Postgres test DB), worker 3, admin 8 (3 new), Flutter 42 (12 new). **Scenario C** (virtual card: request → staff queue → approve → active → notification; no number/CVV/token/PIN hash ever returned), debit lifecycle (approval → 5-day prep → job marks READY → activate with app PIN + card PIN, Argon2id issuer hash), controls (tighten free / loosen needs PIN / bank maximum), freeze, report-lost with replacement, credit applications with staff-set limit. **Scenario D** (FD open via ledger with PIN + Idempotency-Key; maturity by the job: renew with interest / without interest / payout; 3 concurrent workers = one renewal; multi-term catch-up after downtime; failed funding account flagged without looping; staff-reviewed early closure with configurable penalty; staff-managed rate card). **Scenario E** (apply → officer recommends → SAME officer refused 403 + HIGH security event → different officer approves → atomic disbursement with schedule; DB CHECK also rejects checker = maker; rejection paths; instalments through the payment pipeline with interest-first allocation, partial payments, overpayment refusal, early settlement waiving future interest, overdue + reminder jobs once). Integer amortisation (EMI cross-checked against an independent float calculation: 88,848.79 / 17,210.49). Savings goals as ledger accounts (idempotent contribute/withdraw, achieved notification) and budgets (spend by category from posted payments; alerts once at 80% and 100% per month). Live run on the dev DB: card approve, FD open, goal idempotency, loan recommend, maker-checker refusal, full job tick (no errors), reconciliation clean.
+
+Defects found by tests this phase: reportLost conflated "not allowed" with "no replacement" (virtual card reports were wrongly refused); my own EMI test figure was wrong (implementation was right, verified independently); Flutter dialog controllers disposed during exit animation.
+
+NOT done / limits:
+* **Cards:** no merchant/ATM simulation, so card limits and controls are stored and shown but not enforced at purchase; no card transaction history/analytics/spend alerts, merchant-category controls, limit-increase requests, delivery tracking beyond status, virtual card detail reveal.
+* **Deposits:** no PDF certificates or maturity calendar/reminders (Phase 7/8), no comparison screen beyond the calculator; deposits are not part of the account list total; renewals use the current rate card for the term; the penalty key `fd.earlyPenaltyBps` has no admin UI.
+* **Loans:** no supporting-document upload (no object-storage layer yet), no product comparison, repayment calendar or schedule PDF, no late fees or penalty interest, crude income-share affordability only, no collateral/guarantors; "settlement request" is paying the quoted settlement amount (no staff step). Maker-checker covers loan disbursement only (not account approval, reversals, adjustments).
+* **Savings/finance:** no scheduled contributions, recurring-expense/subscription detection, category editing, cash-flow forecast or insights (Phase 8). Budgets count posted payments only.
+* Mobile services screens and admin product pages have never run on a device/browser; no UI test for the date-sensitive flows. GitHub Actions still never run (CI env lacks INTERNAL_JOB_TOKEN; tests set their own).
+
+## Next: Phase 6 — Administration portal
+1. Dashboard KPIs from real aggregates; customer 360 (profile, accounts, KYC docs view), customer search/suspend/restore.
+2. Staff management (provisioning, role/permission editing without self-escalation, session revocation), audit log viewer, settings (fees, limits, rates, maintenance mode).
+3. Reversal/adjustment workflow with maker-checker; reconciliation page; disputes queue stub for Phase 7.

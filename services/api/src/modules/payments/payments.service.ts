@@ -2,14 +2,17 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma, type PaymentKind, type PaymentStatus } from '@prisma/client';
 import { createHash, randomInt } from 'node:crypto';
 import { AuditService } from '../../common/audit.service';
+import { PaymentRefusal } from '../../common/refusal';
 import { PrismaService } from '../../common/prisma.service';
 import { masked, num } from '../accounts/accounts.service';
 import { PinService } from '../auth/pin.service';
 import { LedgerRejection, LedgerService } from '../ledger/ledger.service';
+import { LoansService, type RepaymentPlan } from '../loans/loans.service';
 import { formatMinor, type PostingInput } from '../ledger/money';
 import { BeneficiariesService } from './beneficiaries.service';
 import { BILLERS, bankName, parseQr, SIMULATED_BANKS } from './catalog';
 import { PolicyService, startOfBankingDay } from './policy.service';
+import { SavingsService } from '../savings/savings.service';
 
 export type DestinationInput =
   | { type: 'OWN'; accountId: string }
@@ -17,12 +20,14 @@ export type DestinationInput =
   | { type: 'ZENTRIX'; accountNumber: string }
   | { type: 'INTERBANK'; bankCode: string; accountNumber: string; holderName: string }
   | { type: 'BILL'; billerCode: string; billRef: string }
-  | { type: 'QR'; payload: string };
+  | { type: 'QR'; payload: string }
+  | { type: 'LOAN'; loanId: string };
 
 /** Server-resolved destination, persisted with the instruction and used verbatim at execution time. */
 type Resolved =
   | { settle: 'INTERNAL'; toAccountId: string; toCustomerId: string; name: string; accountMasked: string; bank: string }
   | { settle: 'INTERBANK'; bankCode: string; accountNumber: string; name: string; accountMasked: string; bank: string }
+  | { settle: 'LOAN'; loanId: string; name: string; accountMasked: string; bank: string }
   | { settle: 'BILL'; billerCode: string; billerName: string; category: string; billRef: string; name: string; accountMasked: string; bank: string };
 
 export interface CreateInput {
@@ -52,16 +57,12 @@ export interface PaymentView {
   failureMessage: string | null;
 }
 
-class PaymentRefusal extends Error {
-  constructor(public readonly code: string) {
-    super(code);
-  }
-}
-
 const FAILURE_TEXT: Record<string, string> = {
   INSUFFICIENT_FUNDS: 'Insufficient funds',
   ACCOUNT_RESTRICTED: 'An account involved in this payment cannot take part in it right now',
   LIMIT_EXCEEDED: 'This payment exceeds your transfer limit',
+  OVERPAYMENT: 'That is more than you owe on this loan',
+  LOAN_CLOSED: 'This loan is already settled',
   UNKNOWN_ACCOUNT: 'An account involved in this payment no longer exists',
   CURRENCY_MISMATCH: 'Currency mismatch',
   DUPLICATE_REFERENCE: 'This payment was already processed',
@@ -91,6 +92,8 @@ export class PaymentsService {
     private readonly pins: PinService,
     private readonly policy: PolicyService,
     private readonly beneficiaries: BeneficiariesService,
+    private readonly loans: LoansService,
+    private readonly savings: SavingsService,
   ) {}
 
   // ───────────────────────── views ─────────────────────────
@@ -133,6 +136,10 @@ export class PaymentsService {
         if (/0000$/.test(d.accountNumber)) throw new BadRequestException({ code: 'unverifiable_account', message: 'We could not verify that account number' });
         return { kind: 'INTERBANK_TRANSFER', stored: { settle: 'INTERBANK', bankCode: d.bankCode, accountNumber: d.accountNumber, name: d.holderName, accountMasked: masked(d.accountNumber), bank: bankName(d.bankCode) } };
       }
+      case 'LOAN': {
+        const r = await this.loans.resolveForPayment(customerId, d.loanId);
+        return { kind: 'LOAN_INSTALMENT', stored: { settle: 'LOAN', loanId: r.loan.id, name: `${r.productName} ${r.loan.reference}`, accountMasked: r.loan.reference, bank: 'Zentrix Bank loan' } };
+      }
       case 'BILL': {
         const biller = BILLERS.find((b) => b.code === d.billerCode);
         if (!biller) throw new NotFoundException({ code: 'biller_not_found', message: 'Unknown biller' });
@@ -153,7 +160,7 @@ export class PaymentsService {
   private async dailyUsed(userId: string, now: Date, tx?: Prisma.TransactionClient): Promise<bigint> {
     const r = await (tx ?? this.prisma).paymentInstruction.aggregate({
       _sum: { amountMinor: true },
-      where: { initiatorId: userId, status: 'POSTED', kind: { not: 'OWN_TRANSFER' }, postedAt: { gte: startOfBankingDay(now) } },
+      where: { initiatorId: userId, status: 'POSTED', kind: { notIn: ['OWN_TRANSFER', 'LOAN_INSTALMENT'] }, postedAt: { gte: startOfBankingDay(now) } },
     });
     return r._sum.amountMinor ?? 0n;
   }
@@ -182,6 +189,10 @@ export class PaymentsService {
     if (src.status !== 'ACTIVE') throw new ConflictException({ code: 'account_restricted', message: `This account is ${src.status.toLowerCase()} and cannot send money` });
     const { kind, stored } = await this.resolve(userId, src.id, input.destination);
     const amount = BigInt(input.amountMinor);
+    if (input.destination.type === 'LOAN') {
+      const r = await this.loans.resolveForPayment(userId, input.destination.loanId);
+      if (amount > r.settlementMinor) throw new UnprocessableEntityException({ code: 'overpayment', message: `That is more than you owe. The settlement amount today is ${lkr(r.settlementMinor)}.` });
+    }
     const fee = await this.policy.feeFor(kind, amount);
     const lim = await this.policy.limits();
     if (amount > lim.perTransferMinor) throw new UnprocessableEntityException({ code: 'limit_exceeded', message: `The limit per payment is ${lkr(lim.perTransferMinor)}` });
@@ -193,7 +204,7 @@ export class PaymentsService {
         throw new BadRequestException({ code: 'validation_failed', message: 'Choose a date between now and one year ahead', fields: { scheduledFor: 'Invalid date' } });
     } else {
       // Early, friendly checks for immediate payments. They are re-checked authoritatively at execution.
-      if (kind !== 'OWN_TRANSFER' && (await this.dailyUsed(userId, now)) + amount > lim.dailyMinor)
+      if (kind !== 'OWN_TRANSFER' && kind !== 'LOAN_INSTALMENT' && (await this.dailyUsed(userId, now)) + amount > lim.dailyMinor)
         throw new UnprocessableEntityException({ code: 'daily_limit_exceeded', message: 'This would exceed your daily transfer limit' });
       if ((src.ledgerAccount?.balanceMinor ?? 0n) < amount + fee && !src.ledgerAccount?.allowNegative)
         throw new UnprocessableEntityException({ code: 'insufficient_funds', message: 'Insufficient funds for this payment and its fee' });
@@ -266,13 +277,19 @@ export class PaymentsService {
           const lim = await this.policy.limits();
           if (p.amountMinor > lim.perTransferMinor) throw new PaymentRefusal('LIMIT_EXCEEDED');
           const now = new Date();
-          if (p.kind !== 'OWN_TRANSFER' && (await this.dailyUsed(p.initiatorId, now, tx)) + p.amountMinor > lim.dailyMinor) throw new PaymentRefusal('LIMIT_EXCEEDED');
+          if (p.kind !== 'OWN_TRANSFER' && p.kind !== 'LOAN_INSTALMENT' && (await this.dailyUsed(p.initiatorId, now, tx)) + p.amountMinor > lim.dailyMinor) throw new PaymentRefusal('LIMIT_EXCEEDED');
 
           const dest = p.destination as unknown as Resolved;
           const src = await tx.ledgerAccount.findUniqueOrThrow({ where: { accountId: p.sourceAccountId } });
           const postings: PostingInput[] = [{ ledgerAccountId: src.id, direction: 'DEBIT', amountMinor: p.amountMinor + p.feeMinor, currency: p.currency }];
           let toCustomer: string | null = null;
-          if (dest.settle === 'INTERNAL') {
+          let repayment: RepaymentPlan | null = null;
+          if (dest.settle === 'LOAN') {
+            // Interest first, then principal, oldest instalment first; the split is decided under a lock on the loan.
+            repayment = await this.loans.planRepayment(tx, dest.loanId, p.amountMinor, p.reference, now);
+            if (repayment.principalMinor > 0n) postings.push({ ledgerAccountId: repayment.loanLedgerAccountId, direction: 'CREDIT', amountMinor: repayment.principalMinor, currency: p.currency });
+            if (repayment.interestMinor > 0n) postings.push({ ledgerAccountId: await this.ledger.systemAccountId('interestIncome', tx), direction: 'CREDIT', amountMinor: repayment.interestMinor, currency: p.currency });
+          } else if (dest.settle === 'INTERNAL') {
             const to = await tx.ledgerAccount.findUnique({ where: { accountId: dest.toAccountId } });
             if (!to) throw new PaymentRefusal('UNKNOWN_ACCOUNT');
             postings.push({ ledgerAccountId: to.id, direction: 'CREDIT', amountMinor: p.amountMinor, currency: p.currency });
@@ -282,7 +299,8 @@ export class PaymentsService {
           }
           if (p.feeMinor > 0n) postings.push({ ledgerAccountId: await this.ledger.systemAccountId('feeIncome', tx), direction: 'CREDIT', amountMinor: p.feeMinor, currency: p.currency });
 
-          await this.ledger.post({ reference: p.reference, kind: p.kind, currency: p.currency, description: p.note ? `${dest.name}: ${p.note}` : `Payment to ${dest.name}`, paymentId: p.id, postings }, tx);
+          await this.ledger.post({ reference: p.reference, kind: p.kind, currency: p.currency, description: p.note ? `${dest.name}: ${p.note}` : dest.settle === 'LOAN' ? `Loan repayment ${dest.name}` : `Payment to ${dest.name}`, paymentId: p.id, postings }, tx);
+          if (repayment) await this.loans.commitRepayment(tx, repayment, p.id, p.amountMinor);
           const done = await tx.paymentInstruction.update({ where: { id }, data: { status: 'POSTED', postedAt: now } });
 
           const sender = await tx.customerProfile.findUniqueOrThrow({ where: { userId: p.initiatorId } });
@@ -296,7 +314,11 @@ export class PaymentsService {
         },
         { maxWait: 10_000, timeout: 20_000 },
       );
-      if (out) return this.toView(out);
+      if (out) {
+        // Best-effort and AFTER the payment committed: budget alerts must never fail or delay a payment.
+        await this.savings.checkAfterPayment(out.initiatorId, out.kind, out.destination).catch(() => undefined);
+        return this.toView(out);
+      }
     } catch (e) {
       const code = e instanceof LedgerRejection ? e.code : e instanceof PaymentRefusal ? e.code : null;
       if (!code) throw e; // unexpected (e.g. DB outage): leave AUTHORIZED; the worker retries safely
@@ -421,7 +443,7 @@ export class PaymentsService {
           const d = sp.destination as unknown as Resolved;
           const fee = await this.policy.feeFor(d.settle === 'INTERBANK' ? 'INTERBANK_TRANSFER' : d.settle === 'BILL' ? 'BILL_PAYMENT' : 'INTERNAL_TRANSFER', sp.amountMinor);
           await tx.paymentInstruction.create({
-            data: { reference: ref, kind: d.settle === 'INTERBANK' ? 'INTERBANK_TRANSFER' : d.settle === 'BILL' ? 'BILL_PAYMENT' : 'INTERNAL_TRANSFER', status: 'AUTHORIZED', initiatorId: sp.customerId, sourceAccountId: sp.sourceAccountId, destination: sp.destination as Prisma.InputJsonValue, amountMinor: sp.amountMinor, feeMinor: fee, currency: sp.currency, scheduledFor: sp.nextRunAt, authorizedAt: now, note: sp.note, scheduledPaymentId: sp.id },
+            data: { reference: ref, kind: d.settle === 'INTERBANK' ? 'INTERBANK_TRANSFER' : d.settle === 'BILL' ? 'BILL_PAYMENT' : d.settle === 'LOAN' ? 'LOAN_INSTALMENT' : 'INTERNAL_TRANSFER', status: 'AUTHORIZED', initiatorId: sp.customerId, sourceAccountId: sp.sourceAccountId, destination: sp.destination as Prisma.InputJsonValue, amountMinor: sp.amountMinor, feeMinor: fee, currency: sp.currency, scheduledFor: sp.nextRunAt, authorizedAt: now, note: sp.note, scheduledPaymentId: sp.id },
           });
         }
         await tx.scheduledPayment.update({ where: { id: sp.id }, data: { nextRunAt: next, lastRunAt: now, ...(sp.endAt && next > sp.endAt ? { active: false } : {}) } });

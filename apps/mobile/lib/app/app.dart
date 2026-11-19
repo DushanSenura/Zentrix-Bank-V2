@@ -13,6 +13,9 @@ import '../features/payments/data/payments_repository.dart';
 import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
+import '../features/services/presentation/cards_pages.dart';
+import '../features/services/presentation/deposits_loans_pages.dart';
+import '../features/services/presentation/savings_pages.dart';
 import '../features/settings/settings_controller.dart';
 
 const _publicRoutes = {'/login', '/register', '/forgot'};
@@ -45,6 +48,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordPage()),
       GoRoute(path: '/unlock', builder: (_, _) => const UnlockPage()),
       GoRoute(path: '/', builder: (_, _) => const HomePage()),
+      GoRoute(path: '/services', builder: (_, _) => const ServicesHubPage(), routes: [
+        GoRoute(path: 'cards', builder: (_, _) => const CardsPage(), routes: [
+          GoRoute(path: 'request', builder: (_, _) => const RequestCardPage()),
+          GoRoute(path: ':id', builder: (_, st) => CardDetailPage(id: st.pathParameters['id']!)),
+        ]),
+        GoRoute(path: 'deposits', builder: (_, _) => const DepositsPage(), routes: [GoRoute(path: 'open', builder: (_, _) => const OpenDepositPage())]),
+        GoRoute(path: 'loans', builder: (_, _) => const LoansPage(), routes: [
+          GoRoute(path: 'apply', builder: (_, _) => const LoanApplyPage()),
+          GoRoute(path: ':id', builder: (_, st) => LoanDetailPage(id: st.pathParameters['id']!)),
+        ]),
+        GoRoute(path: 'savings', builder: (_, _) => const SavingsPage()),
+        GoRoute(path: 'budgets', builder: (_, _) => const BudgetsPage()),
+      ]),
       GoRoute(path: '/payments', builder: (_, _) => const PaymentsHubPage(), routes: [
         GoRoute(path: 'transfer', builder: (_, st) => TransferPage(args: st.extra is TransferArgs ? st.extra as TransferArgs : const TransferArgs())),
         GoRoute(path: 'bills', builder: (_, _) => const BillsPage()),

@@ -1,0 +1,39 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../features/authentication/data/auth_repository.dart';
+import 'tokens.dart';
+import 'widgets.dart';
+
+String errorText(Object e) => e is ApiFailure ? e.message : 'Something went wrong. Please try again.';
+
+/// Standard loading / error-with-retry / data states so every screen handles them the same way.
+class AsyncView<T> extends StatelessWidget {
+  const AsyncView({super.key, required this.value, required this.onRetry, required this.builder});
+  final AsyncValue<T> value;
+  final VoidCallback onRetry;
+  final Widget Function(T data) builder;
+
+  @override
+  Widget build(BuildContext context) => value.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(ZxSpace.lg), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(errorText(e), textAlign: TextAlign.center), TextButton(onPressed: onRetry, child: const Text('Retry'))]))),
+        data: builder,
+      );
+}
+
+/// Backdrop + SafeArea scaffold used by list-style service screens.
+class ServicePage extends StatelessWidget {
+  const ServicePage({super.key, required this.title, required this.body, this.fab, this.actions});
+  final String title;
+  final Widget body;
+  final Widget? fab;
+  final List<Widget>? actions;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title), actions: actions),
+        floatingActionButton: fab,
+        body: ZxBackdrop(child: SafeArea(child: body)),
+      );
+}

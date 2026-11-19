@@ -16,6 +16,14 @@ import { BeneficiariesService } from './modules/payments/beneficiaries.service';
 import { AdminPaymentsController, InternalJobsController, NotificationsController, PaymentsController } from './modules/payments/payments.controller';
 import { PaymentsService } from './modules/payments/payments.service';
 import { PolicyService } from './modules/payments/policy.service';
+import { AdminCardsController, CardsController } from './modules/cards/cards.controller';
+import { CardsService } from './modules/cards/cards.service';
+import { AdminDepositsController, DepositsController } from './modules/deposits/deposits.controller';
+import { DepositsService } from './modules/deposits/deposits.service';
+import { AdminLoansController, LoansController } from './modules/loans/loans.controller';
+import { LoansService } from './modules/loans/loans.service';
+import { SavingsController } from './modules/savings/savings.controller';
+import { SavingsService } from './modules/savings/savings.service';
 import { AdminKycController } from './modules/customers/admin-kyc.controller';
 import { MeController } from './modules/customers/me.controller';
 import { HealthController } from './modules/health/health.controller';
@@ -26,7 +34,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController],
   providers: [
     AuthService,
     LedgerService,
@@ -35,6 +43,10 @@ import { HealthController } from './modules/health/health.controller';
     PolicyService,
     BeneficiariesService,
     PaymentsService,
+    CardsService,
+    DepositsService,
+    LoansService,
+    SavingsService,
     TokenService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

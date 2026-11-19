@@ -48,8 +48,9 @@ const dueWorker = new Worker(
     if (!jobToken) return;
     const res = await fetch(`${apiBase}/api/v1/internal/jobs/run-due`, { method: 'POST', headers: { 'x-internal-token': jobToken }, signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new Error(`run-due responded ${res.status}`); // BullMQ records the failure; the next tick retries
-    const r = (await res.json()) as Record<string, number>;
-    if (Object.values(r).some((n) => n > 0)) console.log('due-payments:', JSON.stringify(r));
+    const r = (await res.json()) as Record<string, number | string[]>;
+    const active = Object.values(r).some((v) => (Array.isArray(v) ? v.length > 0 : v > 0));
+    if (active) console.log('due-jobs:', JSON.stringify(r)); // includes any per-job errors reported by the API
   },
   { connection, concurrency: 1 },
 );
