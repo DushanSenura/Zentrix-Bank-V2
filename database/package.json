@@ -8,7 +8,6 @@
     "validate": "prisma validate --schema prisma/schema.prisma",
     "migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
-    "seed": "tsx prisma/seed.ts",
     "typecheck": "echo \"no ts sources yet\""
   },
   "dependencies": {

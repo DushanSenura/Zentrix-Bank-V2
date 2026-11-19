@@ -9,7 +9,7 @@
     "db:up": "docker compose up -d postgres redis",
     "db:generate": "pnpm --filter @zentrix/database generate",
     "db:migrate": "pnpm --filter @zentrix/database migrate:dev",
-    "db:seed": "pnpm --filter @zentrix/database seed",
+    "db:seed": "pnpm --filter @zentrix/api seed",
     "api:dev": "pnpm --filter @zentrix/api dev",
     "worker:dev": "pnpm --filter @zentrix/worker dev",
     "admin:dev": "pnpm --filter @zentrix/admin dev",

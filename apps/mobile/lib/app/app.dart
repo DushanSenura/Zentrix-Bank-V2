@@ -2,62 +2,60 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/health/health_provider.dart';
+import '../core/design_system/app_theme.dart';
+import '../core/design_system/widgets.dart';
+import '../features/authentication/presentation/auth_controller.dart';
+import '../features/authentication/presentation/auth_pages.dart';
+import '../features/authentication/presentation/onboarding_pages.dart';
 
-const _primary = Color(0xFF155EEF);
+const _publicRoutes = {'/login', '/register', '/forgot'};
 
-final _router = GoRouter(routes: [
-  GoRoute(path: '/', builder: (_, _) => const _ShellPage()),
-]);
+final routerProvider = Provider<GoRouter>((ref) {
+  final refresh = ValueNotifier<int>(0);
+  ref.listen(authControllerProvider, (_, _) => refresh.value++);
+  ref.onDispose(refresh.dispose);
 
-class ZentrixApp extends StatelessWidget {
+  return GoRouter(
+    refreshListenable: refresh,
+    redirect: (context, state) {
+      final auth = ref.read(authControllerProvider);
+      final loc = state.matchedLocation;
+      if (auth.restoring) return loc == '/splash' ? null : '/splash';
+      if (!auth.signedIn) return _publicRoutes.contains(loc) ? null : '/login';
+      return (loc == '/splash' || _publicRoutes.contains(loc)) ? '/' : null;
+    },
+    routes: [
+      GoRoute(path: '/splash', builder: (_, _) => const _Splash()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
+      GoRoute(path: '/forgot', builder: (_, _) => const ForgotPasswordPage()),
+      GoRoute(path: '/', builder: (_, _) => const HomePage()),
+      GoRoute(path: '/kyc', builder: (_, _) => const KycPage()),
+      GoRoute(path: '/pin', builder: (_, _) => const PinSetupPage()),
+    ],
+  );
+});
+
+class ZentrixApp extends ConsumerWidget {
   const ZentrixApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    ThemeData theme(Brightness b) => ThemeData(
-          useMaterial3: true,
-          fontFamily: 'Manrope',
-          colorScheme: ColorScheme.fromSeed(seedColor: _primary, brightness: b),
-        );
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'Zentrix Bank',
-      theme: theme(Brightness.light),
-      darkTheme: theme(Brightness.dark),
-      routerConfig: _router,
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
+      routerConfig: ref.watch(routerProvider),
     );
   }
 }
 
-/// Phase 1 shell: proves the app reaches the real backend. Auth and banking screens start in Phase 2.
-class _ShellPage extends ConsumerWidget {
-  const _ShellPage();
-
+class _Splash extends StatelessWidget {
+  const _Splash();
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final health = ref.watch(healthProvider);
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Image.asset('assets/brand/bank_logo.png', height: 96, semanticLabel: 'Zentrix Bank logo'),
-              const SizedBox(height: 16),
-              Text('Zentrix Bank', style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 24),
-              health.when(
-                loading: () => const CircularProgressIndicator(),
-                error: (_, _) => Column(children: [
-                  const Text('Cannot reach the Zentrix API.'),
-                  TextButton(onPressed: () => ref.invalidate(healthProvider), child: const Text('Retry')),
-                ]),
-                data: (h) => Text(h.ok ? 'Backend connected' : 'Backend degraded (db: ${h.database}, redis: ${h.redis})'),
-              ),
-            ]),
-          ),
+  Widget build(BuildContext context) => Scaffold(
+        body: ZxBackdrop(
+          child: Center(child: Image.asset('assets/brand/bank_logo.png', height: 120, semanticLabel: 'Zentrix Bank')),
         ),
-      ),
-    );
-  }
+      );
 }

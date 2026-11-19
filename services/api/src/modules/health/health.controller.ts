@@ -1,18 +1,19 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../../common/prisma.service';
+import { Public } from '../auth/auth.decorators';
 import Redis from 'ioredis';
 import { loadEnv } from '../../config/env';
 
 type Check = { status: 'up' | 'down'; latencyMs?: number };
 
+@Public()
 @ApiTags('health')
 @Controller({ path: 'health', version: '1' })
 export class HealthController {
-  private readonly prisma = new PrismaClient();
   private readonly redis: Redis;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.redis = new Redis(loadEnv().REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1, connectTimeout: 2000 });
     this.redis.on('error', () => undefined); // reported via the health result, not crashed on
   }

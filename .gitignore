@@ -16,3 +16,4 @@ uploads/
 *.key
 *.jks
 key.properties
+.local-dev-credentials.json

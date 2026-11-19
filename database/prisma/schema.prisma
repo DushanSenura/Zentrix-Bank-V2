@@ -44,6 +44,8 @@ model User {
   failedLogins     Int        @default(0)
   lockedUntil      DateTime?
   mfaSecretEnc     String? // encrypted TOTP secret (mandatory for staff)
+  pinHash          String? // Argon2id hash of the 4/6-digit app PIN
+  pinSetAt         DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 
@@ -54,6 +56,7 @@ model User {
   devices          TrustedDevice[]
   loginHistory     LoginHistory[]
   securityEvents   SecurityEvent[]
+  challenges       AuthenticationChallenge[]
 
   @@index([type, status])
 }
@@ -137,6 +140,20 @@ model Session {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
+}
+
+/// Single-use, expiring, hashed tokens (password reset, later OTP/step-up). Raw token is never stored.
+model AuthenticationChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  purpose    String // PASSWORD_RESET
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
 }
 
 model TrustedDevice {

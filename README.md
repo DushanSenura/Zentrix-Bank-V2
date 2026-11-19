@@ -14,6 +14,7 @@ pnpm install
 pnpm db:up                      # Postgres + Redis (Redis on host port 6380)
 pnpm db:generate
 pnpm --filter @zentrix/database migrate:deploy
+pnpm db:seed                    # RBAC catalogue + fictional demo users; credentials go to .local-dev-credentials.json (git-ignored)
 pnpm api:dev                    # http://localhost:3000/api/v1/health  ·  Swagger: /api/docs
 pnpm worker:dev                 # outbox relay
 pnpm admin:dev                  # http://localhost:5173
