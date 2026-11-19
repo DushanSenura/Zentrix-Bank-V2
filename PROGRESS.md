@@ -11,11 +11,19 @@ Not verified: GitHub Actions workflow has never run; admin dev server not exerci
 * shadcn/ui, React Hook Form, Zod, TanStack Table, Recharts not yet added to admin (added when first screens need them). Flutter deps beyond riverpod/go_router/dio added in Phase 2+.
 * Dart OpenAPI client generation not set up yet.
 
-## Phase 2 — Design system & authentication: PARTIALLY DONE (verified 2026-11-19)
-Done and verified: Argon2id auth, rotating sessions with reuse detection, lockout, mandatory staff TOTP MFA, deny-by-default RBAC (18 permissions, 10 roles), customer KYC submit + staff review/approve (audited, outbox event), password reset, server-side PIN set, idempotent dev seed with generated credentials. API: 19 tests pass (8 integration tests against a real Postgres test DB, incl. Scenario A and the cross-role part of Scenario G); typecheck + build clean; live smoke test of seeded staff login with TOTP OK. Admin: MFA login + permission-aware KYC review page (typecheck/build OK, **not exercised in a browser**). Flutter: V2 tokens (light/dark, motion), GlassCard/ZxButton, secure refresh-token store, login/register/forgot-reset/KYC/PIN/home screens; analyze clean, 5 widget tests pass (fake repository; **never run against the live API or on a device**).
+## Phase 2 — Design system & authentication: DONE with listed exceptions (verified 2026-11-19)
+Verified: API 24/24 tests (real Postgres test DB) covering auth, lockout, refresh rotation/reuse, staff MFA, RBAC, KYC (Scenario A), password reset, sessions/devices/login history with cross-customer isolation (Scenario G), change password, change/verify PIN with 5-strike sign-out; typecheck + build clean. Admin: 3 tests (MFA login step, staff-only enforcement, refresh-and-replay), typecheck/build OK, light/dark/system toggle. Flutter: analyze clean, 11 widget tests (onboarding, login, server-verified PIN unlock, biometric success/failure with a fake, re-lock after timeout, privacy cover, dark + 2x text), `flutter build apk --debug` succeeds with the new native config.
 
-NOT done from the Phase 2 brief: onboarding carousel + animated splash, biometrics/app lock/auto-lock/background privacy, device verification & trusted-device/session management UI, change password/PIN, identity *document* upload, multi-step registration progress, staff invitation/role management (Phase 6), Sinhala/Tamil, shadcn/ui + RHF/Zod in admin, admin dark-mode toggle, accessibility audit, Dart OpenAPI client. CI workflow updated but still never run on GitHub.
+Implemented on mobile: animated splash, onboarding carousel, login/register/forgot-reset, KYC submit, PIN setup, server-verified app unlock + biometrics (local_auth), auto-lock timeout, privacy cover, FLAG_SECURE in release, security centre (change password/PIN, sessions, trusted devices, login history), theme/reduce-motion/lock settings.
 
-## Next
-1. Finish Phase 2 gaps above (biometrics/app lock, onboarding/splash, sessions & devices endpoints+UI, change password/PIN).
-2. Phase 3: accounts, ledger service (post journals with row locking), account applications + approval, balance projections, concurrency tests (Scenario H).
+NOT verified / known gaps (Phase 2):
+* No test touched a real phone or emulator or the live API from the Flutter/admin UIs (fakes only). Real biometric prompts, FLAG_SECURE and iOS Face ID untested; iOS never built (needs macOS).
+* Identity DOCUMENT image upload, multi-step registration progress UI, staff invitation / role management (Phase 6), Sinhala/Tamil localisation, shadcn/ui + React Hook Form in admin, Dart OpenAPI client, TalkBack/VoiceOver audit: not done.
+* PIN unlock needs network (server-verified); only biometrics work offline. Rate limiting is per-process memory. TOTP replay within window not blocked.
+* GitHub Actions has never run.
+
+## Next: Phase 3 — Accounts and financial ledger
+1. Ledger service: post balanced journals in one DB transaction with row locks; balance projection; idempotency; reversal.
+2. Account products, applications + staff approval workflow, account status history.
+3. Customer account list/detail API + Flutter screens; admin account queue.
+4. Concurrency (Scenario H) and ledger integrity tests; reconciliation check.

@@ -1,7 +1,10 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/storage/prefs_store.dart';
 import '../../../core/storage/token_store.dart';
 
 /// Customer-safe failure. Never carries URLs, headers or raw server text beyond the API's own message.
@@ -36,10 +39,34 @@ class Me {
       );
 }
 
+class SessionInfo {
+  const SessionInfo({required this.id, required this.createdAt, required this.current, this.userAgent, this.ip});
+  final String id;
+  final DateTime createdAt;
+  final bool current;
+  final String? userAgent;
+  final String? ip;
+}
+
+class LoginEntry {
+  const LoginEntry({required this.at, required this.success, this.ip});
+  final DateTime at;
+  final bool success;
+  final String? ip;
+}
+
+class DeviceInfo {
+  const DeviceInfo({required this.id, required this.trustedAt, this.label});
+  final String id;
+  final DateTime trustedAt;
+  final String? label;
+}
+
 class AuthRepository {
-  AuthRepository(this._dio, this._store);
+  AuthRepository(this._dio, this._store, [this._prefs]);
   final Dio _dio;
   final TokenStore _store;
+  final PrefsStore? _prefs;
   String? _access;
   String? _refresh;
 
@@ -52,7 +79,7 @@ class AuthRepository {
       if (s >= 200 && s < 300) return r;
       final d = r.data ?? const {};
       throw ApiFailure(
-        (d['code'] as String?) ?? 'error',
+        (d['code'] as String?) ?? (s == 401 ? 'unauthenticated' : 'error'),
         s >= 500 ? 'Something went wrong on our side. Please try again.' : (d['message'] as String?) ?? 'Request failed',
         fields: ((d['fields'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', '$v')),
       );
@@ -60,6 +87,16 @@ class AuthRepository {
       // A dropped connection is NOT a business refusal - callers must not assume a write failed.
       throw ApiFailure('network', 'Cannot reach Zentrix Bank. Check your connection and try again.', network: true);
     }
+  }
+
+  /// Authenticated call: on 401 refreshes the token once and replays. (Money-moving calls arrive later and must
+  /// carry an idempotency key before they are ever replayed.)
+  Future<Response<Map<String, dynamic>>> _authed(Future<Response<Map<String, dynamic>>> Function(Options o) call) async {
+    return _send(() async {
+      var r = await call(_auth);
+      if (r.statusCode == 401 && await _refreshOnce()) r = await call(_auth);
+      return r;
+    });
   }
 
   Future<void> _adopt(Map<String, dynamic> d) async {
@@ -71,7 +108,10 @@ class AuthRepository {
     final r = await _send(() => _dio.post('/api/v1/auth/login', data: {'identifier': identifier, 'password': password}));
     if (r.data!['userType'] != 'CUSTOMER') throw ApiFailure('not_customer', 'Please use the Zentrix staff portal to sign in.');
     await _adopt(r.data!);
-    if (remember) await _store.writeRefresh(_refresh!);
+    if (remember) {
+      await _store.writeRefresh(_refresh!);
+      await _trustThisDevice();
+    }
     return me();
   }
 
@@ -96,12 +136,7 @@ class AuthRepository {
     }
   }
 
-  Future<Me> me() async {
-    Future<Response<Map<String, dynamic>>> call() => _dio.get('/api/v1/me', options: _auth);
-    var r = await call();
-    if (r.statusCode == 401 && await _refreshOnce()) r = await call();
-    return Me.fromJson((await _send(() async => r)).data!);
-  }
+  Future<Me> me() async => Me.fromJson((await _authed((o) => _dio.get('/api/v1/me', options: o))).data!);
 
   Future<bool> _refreshOnce() async {
     if (_refresh == null) return false;
@@ -113,13 +148,63 @@ class AuthRepository {
   }
 
   Future<void> submitKyc({required String nationalId, required String dateOfBirth, required String line1, required String city, required String postalCode}) =>
-      _send(() => _dio.post('/api/v1/me/kyc', options: _auth, data: {
+      _authed((o) => _dio.post('/api/v1/me/kyc', options: o, data: {
             'nationalId': nationalId,
             'dateOfBirth': dateOfBirth,
             'address': {'line1': line1, 'city': city, 'postalCode': postalCode},
           }));
 
-  Future<void> setPin(String pin) => _send(() => _dio.put('/api/v1/me/pin', options: _auth, data: {'pin': pin}));
+  Future<void> setPin(String pin) => _authed((o) => _dio.put('/api/v1/me/pin', options: o, data: {'pin': pin}));
+  Future<void> changePin(String currentPin, String newPin) =>
+      _authed((o) => _dio.put('/api/v1/security/pin', options: o, data: {'currentPin': currentPin, 'newPin': newPin}));
+  Future<void> verifyPin(String pin) => _authed((o) => _dio.post('/api/v1/security/pin/verify', options: o, data: {'pin': pin}));
+  Future<void> changePassword(String current, String next) =>
+      _authed((o) => _dio.put('/api/v1/security/password', options: o, data: {'current': current, 'next': next}));
+
+  Future<List<SessionInfo>> sessions() async {
+    final d = (await _authed((o) => _dio.get('/api/v1/security/sessions', options: o))).data!;
+    return [
+      for (final s in (d['items'] as List).cast<Map<String, dynamic>>())
+        SessionInfo(id: s['id'] as String, createdAt: DateTime.parse(s['createdAt'] as String), current: s['current'] == true, userAgent: s['userAgent'] as String?, ip: s['ip'] as String?),
+    ];
+  }
+
+  Future<void> revokeSession(String id) => _authed((o) => _dio.delete('/api/v1/security/sessions/$id', options: o));
+  Future<void> revokeOtherSessions() => _authed((o) => _dio.post('/api/v1/security/sessions/revoke-others', options: o));
+
+  Future<List<LoginEntry>> loginHistory() async {
+    final d = (await _authed((o) => _dio.get('/api/v1/security/login-history', options: o))).data!;
+    return [for (final h in (d['items'] as List).cast<Map<String, dynamic>>()) LoginEntry(at: DateTime.parse(h['at'] as String), success: h['success'] == true, ip: h['ip'] as String?)];
+  }
+
+  Future<List<DeviceInfo>> devices() async {
+    final d = (await _authed((o) => _dio.get('/api/v1/security/devices', options: o))).data!;
+    return [for (final x in (d['items'] as List).cast<Map<String, dynamic>>()) DeviceInfo(id: x['id'] as String, trustedAt: DateTime.parse(x['trustedAt'] as String), label: x['label'] as String?)];
+  }
+
+  Future<void> removeDevice(String id) => _authed((o) => _dio.delete('/api/v1/security/devices/$id', options: o));
+
+  /// Random per-install id (not hardware-derived, so it carries no personal data).
+  Future<String> _deviceId() async {
+    final p = _prefs;
+    if (p == null) return 'unknown-device-0000';
+    var id = await p.read('deviceId');
+    if (id == null) {
+      final r = Random.secure();
+      id = List.generate(24, (_) => r.nextInt(16).toRadixString(16)).join();
+      await p.write('deviceId', id);
+    }
+    return id;
+  }
+
+  Future<void> _trustThisDevice() async {
+    try {
+      await _authed(
+          (o) async => _dio.post('/api/v1/security/devices', options: o, data: {'fingerprint': await _deviceId(), 'label': 'This device'}));
+    } on ApiFailure {
+      // Best effort: "remember this device" must not block sign-in.
+    }
+  }
 
   Future<void> requestPasswordReset(String identifier) =>
       _send(() => _dio.post('/api/v1/auth/password-reset/request', data: {'identifier': identifier}));
@@ -139,4 +224,4 @@ class AuthRepository {
   }
 }
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(ref.watch(dioProvider), ref.watch(tokenStoreProvider)));
+final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository(ref.watch(dioProvider), ref.watch(tokenStoreProvider), ref.watch(prefsStoreProvider)));

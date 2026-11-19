@@ -46,6 +46,7 @@ model User {
   mfaSecretEnc     String? // encrypted TOTP secret (mandatory for staff)
   pinHash          String? // Argon2id hash of the 4/6-digit app PIN
   pinSetAt         DateTime?
+  pinFailedAttempts Int      @default(0)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 

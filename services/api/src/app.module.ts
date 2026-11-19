@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ErrorFilter } from './common/error.filter';
 import { CoreModule } from './common/prisma.module';
 import { AuthController } from './modules/auth/auth.controller';
+import { SecurityController } from './modules/auth/security.controller';
 import { AuthGuard } from './modules/auth/auth.guard';
 import { AuthService } from './modules/auth/auth.service';
 import { TokenService } from './modules/auth/token.service';
@@ -17,7 +18,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, MeController, AdminKycController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController],
   providers: [
     AuthService,
     TokenService,

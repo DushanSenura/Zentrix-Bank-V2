@@ -14,12 +14,18 @@
   --zx-err: #df4b5b;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --zx-bg: #07111f;
     --zx-surface: #132540;
     --zx-text: #eaf1ff;
     --zx-muted: #9db0d3;
   }
+}
+:root[data-theme='dark'] {
+  --zx-bg: #07111f;
+  --zx-surface: #132540;
+  --zx-text: #eaf1ff;
+  --zx-muted: #9db0d3;
 }
 @theme inline {
   --color-primary: var(--zx-primary);

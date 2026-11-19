@@ -117,6 +117,7 @@ class HomePage extends ConsumerWidget {
       const SizedBox(height: ZxSpace.md),
       if (action != null) ZxButton(label: action, onPressed: () => context.push(route!)),
       if (!me.hasPin) ...[const SizedBox(height: ZxSpace.sm), ZxButton(label: 'Set app PIN', onPressed: () => context.push('/pin'))],
+      TextButton(onPressed: () => context.push('/security'), child: const Text('Security & settings')),
       TextButton(onPressed: () => ref.read(authControllerProvider.notifier).logout(), child: const Text('Sign out')),
     ]);
   }

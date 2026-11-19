@@ -49,6 +49,9 @@ export class MeController {
 
   @CustomerOnly() @HttpCode(204) @Put('pin')
   async setPin(@CurrentUser() u: AuthUser, @Body(new ZodPipe(pinSchema)) b: z.infer<typeof pinSchema>) {
+    // First-time setup only. Changing an existing PIN requires the current one (PUT /v1/security/pin).
+    const existing = await this.prisma.user.findUniqueOrThrow({ where: { id: u.id }, select: { pinHash: true } });
+    if (existing.pinHash) throw new ConflictException({ code: 'pin_exists', message: 'A PIN is already set. Use change PIN.' });
     const problem = pinProblem(b.pin);
     if (problem) throw new BadRequestException({ code: 'weak_pin', message: problem, fields: { pin: problem } });
     await this.prisma.user.update({ where: { id: u.id }, data: { pinHash: await hashSecret(b.pin), pinSetAt: new Date() } });

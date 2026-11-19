@@ -5,6 +5,7 @@ plugins {
 }
 
 android {
+    buildFeatures { buildConfig = true }
     namespace = "lk.zentrix.zentrix_bank"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
