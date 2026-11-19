@@ -426,7 +426,7 @@ describe.skipIf(!TEST_DB)('payments (real database)', () => {
     expect((await ctx.http.post('/api/v1/internal/jobs/run-due').set('x-internal-token', 'wrong'.padEnd(40, 'x'))).status).toBe(401);
     const ok = await ctx.http.post('/api/v1/internal/jobs/run-due').set('x-internal-token', JOB_TOKEN);
     expect(ok.status).toBe(200);
-    expect(Object.keys(ok.body).sort()).toEqual(['cardsReady', 'depositsFailed', 'depositsMatured', 'depositsRenewed', 'errors', 'executed', 'expired', 'failed', 'loanReminders', 'loansOverdue', 'recurringCreated']);
+    expect(Object.keys(ok.body).sort()).toEqual(['cardsReady', 'depositsFailed', 'depositsMatured', 'depositsRenewed', 'errors', 'executed', 'expired', 'failed', 'fdReminders', 'loanReminders', 'loansOverdue', 'paymentReminders', 'recurringCreated', 'riskRaised']);
     expect(ok.body.errors).toEqual([]);
 
     const comp = await makeStaff(ctx, nm('comp'), 'COMPLIANCE_OFFICER');

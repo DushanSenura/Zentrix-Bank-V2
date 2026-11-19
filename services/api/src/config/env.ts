@@ -13,6 +13,9 @@ const schema = z.object({
     .refine((v) => Buffer.from(v, 'base64').length === 32, 'DATA_ENCRYPTION_KEY must be base64 of exactly 32 bytes'),
   // Shared secret the worker presents to run scheduled jobs. Unset => the internal endpoint is disabled.
   INTERNAL_JOB_TOKEN: z.string().min(32, 'INTERNAL_JOB_TOKEN must be at least 32 characters').optional(),
+  // Optional AI answers. Unset => the AI features report themselves as off; nothing else depends on them.
+  ANTHROPIC_API_KEY: z.string().min(10).optional(),
+  AI_MODEL: z.string().min(3).optional(),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
   CUSTOMER_SESSION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   STAFF_SESSION_HOURS: z.coerce.number().int().min(1).max(24).default(12),

@@ -9,6 +9,7 @@ import '../features/authentication/presentation/auth_pages.dart';
 import '../features/authentication/presentation/lock.dart';
 import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
+import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
 import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
@@ -71,6 +72,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: 'scan', builder: (_, _) => const ScanPage()),
         GoRoute(path: 'scheduled', builder: (_, _) => const ScheduledPage()),
       ]),
+      GoRoute(path: '/insights', builder: (_, _) => const InsightsPage()),
+      GoRoute(path: '/assistant', builder: (_, _) => const AssistantPage()),
       GoRoute(path: '/history', builder: (_, _) => const HistoryPage()),
       GoRoute(path: '/statements', builder: (_, _) => const StatementsPage()),
       GoRoute(path: '/support', builder: (_, _) => const SupportHubPage(), routes: [

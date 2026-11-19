@@ -9,6 +9,7 @@ import { PrismaClient } from '@prisma/client';
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import { relayOutboxBatch } from './outbox';
+import { pushNotifications } from './push';
 
 try {
   process.loadEnvFile('../../.env');
@@ -36,7 +37,7 @@ const dueQueue = new Queue(DUE_QUEUE, { connection });
 const outboxWorker = new Worker(
   OUTBOX_QUEUE,
   async () => {
-    const r = await relayOutboxBatch(prisma);
+    const r = await relayOutboxBatch(prisma, 50, async (created) => { const p = await pushNotifications(created); if (p.failed) console.warn(`push: ${p.failed} failed, ${p.sent} sent`); });
     if (r.events > 0) console.log(`outbox: ${r.events} event(s), ${r.notifications} notification(s)`);
   },
   { connection },

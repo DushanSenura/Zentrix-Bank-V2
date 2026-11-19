@@ -12,6 +12,7 @@ import PaymentsPage from './features/payments/PaymentsPage'
 import { CardsAdminPage, DepositsAdminPage, LoansAdminPage } from './features/products/ProductAdminPages'
 import ReportsPage from './features/reports/ReportsPage'
 import SettingsPage from './features/settings/SettingsPage'
+import { RiskPage, SystemHealthPage } from './features/risk/RiskPage'
 import { BranchesPage, DisputesPage, TicketsPage } from './features/support/SupportPages'
 import { RolesPage, StaffPage } from './features/staff/StaffPages'
 import AdminLayout, { allowed } from './layouts/AdminLayout'
@@ -49,6 +50,8 @@ export default function App() {
           <Route path="disputes" element={g(['support.manage'], <DisputesPage />)} />
           <Route path="tickets" element={g(['support.manage'], <TicketsPage />)} />
           <Route path="branches" element={g(['branches.manage', 'support.manage'], <BranchesPage />)} />
+          <Route path="risk" element={g(['risk.review'], <RiskPage />)} />
+          <Route path="health" element={g(['reports.read'], <SystemHealthPage />)} />
           <Route path="reports" element={g(['reports.read'], <ReportsPage />)} />
           <Route path="audit" element={g(['audit.read'], <AuditPage />)} />
           <Route path="staff" element={g(['staff.manage'], <StaffPage />)} />

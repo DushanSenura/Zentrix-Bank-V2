@@ -13,7 +13,7 @@ import { AccountsService } from './modules/accounts/accounts.service';
 import { LedgerService } from './modules/ledger/ledger.service';
 import { PinService } from './modules/auth/pin.service';
 import { BeneficiariesService } from './modules/payments/beneficiaries.service';
-import { AdminPaymentsController, InternalJobsController, NotificationsController, PaymentsController } from './modules/payments/payments.controller';
+import { AdminPaymentsController, InternalJobsController, NotificationsController, PaymentsController, StaffNotificationsController } from './modules/payments/payments.controller';
 import { PaymentsService } from './modules/payments/payments.service';
 import { PolicyService } from './modules/payments/policy.service';
 import { AdminCardsController, CardsController } from './modules/cards/cards.controller';
@@ -32,6 +32,14 @@ import { StaffService } from './modules/admin/staff.service';
 import { AdminSupportController, SupportController } from './modules/support/support.controller';
 import { SupportService } from './modules/support/support.service';
 import { LocalDiskStorage, OBJECT_STORAGE } from './modules/support/storage';
+import { AiService } from './modules/ai/ai.service';
+import { AI_PROVIDER, createProvider } from './modules/ai/provider';
+import { AnalyticsController, AdminRiskController } from './modules/analytics/analytics.controller';
+import { AnalyticsService } from './modules/analytics/analytics.service';
+import { OpsService } from './modules/risk/ops.service';
+import { RemindersService } from './modules/risk/reminders.service';
+import { RiskService } from './modules/risk/risk.service';
+import { ENV, type Env } from './config/env';
 import { ExtrasController } from './modules/payments/extras.controller';
 import { ExtrasService } from './modules/payments/extras.service';
 import { DocumentsController } from './modules/documents/documents.controller';
@@ -46,7 +54,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController],
   providers: [
     AuthService,
     LedgerService,
@@ -67,6 +75,12 @@ import { HealthController } from './modules/health/health.controller';
     SupportService,
     DocumentsService,
     ExtrasService,
+    AnalyticsService,
+    RiskService,
+    RemindersService,
+    OpsService,
+    AiService,
+    { provide: AI_PROVIDER, inject: [ENV], useFactory: (env: Env) => createProvider(env) },
     { provide: OBJECT_STORAGE, useClass: LocalDiskStorage },
     TokenService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },

@@ -83,5 +83,20 @@ NOT done / limits:
 * Share sheet, file writing and date picker are not covered by device tests; the sharer is replaced by a recording fake in widget tests. Admin UI has still never been opened in a real browser. GitHub Actions has still never run.
 * Subscription detection is a simple same-recipient, same-amount, weekly-or-monthly heuristic. Attachment storage is local disk (`STORAGE_DIR`, default `./uploads`, git-ignored); there is no virus scanning, and no cloud storage adapter yet.
 
-## Next: Phase 8
-See the build prompt: risk and fraud alerts, notification delivery channels, insights, and the optional AI features. Carry forward: native-speaker review of si/ta labels, mobile screens for payment requests, templates and subscriptions, and a real-browser pass over the admin UI.
+## Phase 8 — Notifications, AI, analytics, risk: DONE with listed gaps (verified 2026-11-20)
+Verified: API 175 tests (25 new: 15 unit incl. the AI-isolation scan, 10 on a real Postgres test DB), worker 5 (2 new), admin 29 (4 new), Flutter 60 (8 new); `pnpm typecheck`, `pnpm build` and `flutter analyze` clean. One existing test pinned the job endpoint's exact response keys and was updated for the three new counters.
+
+Built: **Risk monitoring** (high-value, rapid payments, large first payment to a new payee, large payment after a new device, optional anomaly experiment) with explainable alerts, staff review workflow, editable thresholds, high-severity staff notifications; **reminders** (fixed-deposit maturity, scheduled payment tomorrow) and a **new-device login alert**; staff notification inbox; optional **push gateway** (generic HTTP) in the worker; **analytics** (month summary, 6-month trend, recurring-expense analysis, FACT/ESTIMATE insights) from real ledger/payment data; **isolated optional AI** (approved-article help assistant with retrieval, optional model wording, optional insight summary); **operations health** endpoint. Admin: Risk alerts and System health pages. Mobile: Spending insights and Help assistant.
+
+Defects found while building: staff could not read their own notifications (the inbox was customer-only), so risk alerts would have been undeliverable; added `/admin/notifications`.
+
+NOT done / limits:
+* **No AI has been exercised against a real model.** AI answers and summaries run only when `ANTHROPIC_API_KEY` is set. Tests cover the prompt contents, redaction, labelling and failure fallback with a fake provider; the real HTTP call to the provider was never made, so its request format is unverified against the live API.
+* **Push** is a generic webhook, not FCM/APNs: there is no device-token registration, no retry, and it was tested only against a fake gateway. Without `PUSH_WEBHOOK_URL`, notifications are in-app only.
+* **Risk rules are simple heuristics** (thresholds, counts, a robust z-score) and are simulated controls, not certified compliance. They run on the job tick over the last 3 hours of payments, so an alert can lag a payment by about one tick. The new-device rule links a device to a payment only by time (payments do not record which device made them). No fraud-case management beyond alert statuses, and no automatic customer restriction by design.
+* Insights: spending categories exist only for bills, transfers and loan repayments (no merchant data); "money in" counts everything credited except your own transfers (including interest and adjustments). No category editing, no forecasts beyond a straight-line month-end estimate. Mobile charts are simple animated bars, not a charting library, and have not been run on a device.
+* The AI help corpus is a short hand-written set of articles (English only); no staff escalation is automatic (the assistant offers a button to message the bank).
+* Admin UI and mobile screens still have never been opened in a real browser or on a device; GitHub Actions has still never run. Sinhala/Tamil wording from Phase 7 is still unreviewed.
+
+## Next: Phase 9 — Quality, security and performance
+Per the build prompt: full integration and end-to-end tests, authorization and isolation tests, concurrency/idempotency/failure-recovery tests, migration tests, accessibility and responsive checks, theme and reduced-motion checks, performance profiling, and dependency/security review.

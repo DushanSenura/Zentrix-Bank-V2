@@ -13,6 +13,8 @@ import { DepositsService } from '../deposits/deposits.service';
 import { LoansService } from '../loans/loans.service';
 import { BeneficiariesService } from './beneficiaries.service';
 import { BILLERS, encodeQr, SIMULATED_BANKS } from './catalog';
+import { RemindersService } from '../risk/reminders.service';
+import { RiskService } from '../risk/risk.service';
 import { PaymentsService } from './payments.service';
 
 const money = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -117,6 +119,25 @@ export class NotificationsController {
   async read(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) { await this.prisma.notification.updateMany({ where: { id, userId: u.id, readAt: null }, data: { readAt: new Date() } }); }
 }
 
+/** Staff inbox: the same persisted notifications, for staff users (risk alerts, escalations). Any signed-in staff member, own rows only. */
+@ApiTags('admin-notifications')
+@Controller({ path: 'admin/notifications', version: '1' })
+export class StaffNotificationsController {
+  constructor(private readonly prisma: PrismaService) {}
+
+  @StaffWith() @Get()
+  async list(@CurrentUser() u: AuthUser) {
+    const [rows, unread] = await Promise.all([
+      this.prisma.notification.findMany({ where: { userId: u.id }, orderBy: { createdAt: 'desc' }, take: 50 }),
+      this.prisma.notification.count({ where: { userId: u.id, readAt: null } }),
+    ]);
+    return { unread, items: rows.map((n) => ({ id: n.id, category: n.category, title: n.title, body: n.body, read: !!n.readAt, createdAt: n.createdAt })) };
+  }
+
+  @StaffWith() @Post('read-all') @HttpCode(204)
+  async readAll(@CurrentUser() u: AuthUser) { await this.prisma.notification.updateMany({ where: { userId: u.id, readAt: null }, data: { readAt: new Date() } }); }
+}
+
 @ApiTags('admin-payments')
 @Controller({ path: 'admin/payments', version: '1' })
 export class AdminPaymentsController {
@@ -134,6 +155,8 @@ export class InternalJobsController {
     private readonly cards: CardsService,
     private readonly deposits: DepositsService,
     private readonly loans: LoansService,
+    private readonly risk: RiskService,
+    private readonly reminders: RemindersService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -154,6 +177,8 @@ export class InternalJobsController {
     const cardsReady = await safe(() => this.cards.runDue(now), 0, errors, 'cards');
     const dep = await safe(() => this.deposits.runDue(now), { matured: 0, renewed: 0, failed: 0 }, errors, 'deposits');
     const loan = await safe(() => this.loans.runDue(now), { overdue: 0, reminders: 0 }, errors, 'loans');
-    return { ...pay, cardsReady, depositsMatured: dep.matured, depositsRenewed: dep.renewed, depositsFailed: dep.failed, loansOverdue: loan.overdue, loanReminders: loan.reminders, errors };
+    const riskScan = await safe(() => this.risk.scan(now), { scanned: 0, raised: 0 }, errors, 'risk');
+    const rem = await safe(() => this.reminders.runDue(now), { fdMaturity: 0, scheduledPayments: 0 }, errors, 'reminders');
+    return { ...pay, riskRaised: riskScan.raised, fdReminders: rem.fdMaturity, paymentReminders: rem.scheduledPayments, cardsReady, depositsMatured: dep.matured, depositsRenewed: dep.renewed, depositsFailed: dep.failed, loansOverdue: loan.overdue, loanReminders: loan.reminders, errors };
   }
 }

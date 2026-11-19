@@ -5,6 +5,7 @@ import { AuditService } from '../../common/audit.service';
 import { lkr, queueNotifications } from '../../common/notify';
 import { PrismaService } from '../../common/prisma.service';
 import { num } from '../accounts/accounts.service';
+import { detectRecurring } from '../analytics/recurring';
 import { PaymentsService, type DestinationInput } from './payments.service';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -132,27 +133,7 @@ export class ExtrasService {
   /** Same recipient and amount, at least 3 completed payments roughly a week or a month apart. */
   async subscriptions(me: string) {
     const since = new Date(Date.now() - 200 * DAY);
-    const rows = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: me, status: 'POSTED', postedAt: { gte: since } }, orderBy: { postedAt: 'asc' }, take: 1000 });
-    const groups = new Map<string, typeof rows>();
-    for (const r of rows) {
-      const d = (r.destination ?? {}) as Record<string, unknown>;
-      const who = String(d.billerCode ?? d.accountNumber ?? d.toAccountId ?? d.name ?? '');
-      if (!who) continue;
-      const k = `${who}|${r.amountMinor}`;
-      groups.set(k, [...(groups.get(k) ?? []), r]);
-    }
-    const items: { name: string; amountMinor: number; frequency: 'WEEKLY' | 'MONTHLY'; occurrences: number; lastPaidAt: Date; nextExpectedAt: Date; annualCostMinor: number }[] = [];
-    for (const list of groups.values()) {
-      if (list.length < 3) continue;
-      const gaps = list.slice(1).map((r, i) => (r.postedAt!.getTime() - list[i]!.postedAt!.getTime()) / DAY);
-      const weekly = gaps.every((g) => g >= 5 && g <= 9);
-      const monthly = gaps.every((g) => g >= 26 && g <= 35);
-      if (!weekly && !monthly) continue;
-      const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-      const last = list[list.length - 1]!;
-      const d = (last.destination ?? {}) as Record<string, unknown>;
-      items.push({ name: String(d.billerName ?? d.name ?? d.billerCode ?? 'Recipient'), amountMinor: num(last.amountMinor), frequency: weekly ? 'WEEKLY' : 'MONTHLY', occurrences: list.length, lastPaidAt: last.postedAt!, nextExpectedAt: new Date(last.postedAt!.getTime() + Math.round(avg) * DAY), annualCostMinor: num(last.amountMinor) * (weekly ? 52 : 12) });
-    }
-    return { items: items.sort((a, b) => b.annualCostMinor - a.annualCostMinor), note: 'Detected from your payment history. This is informational only.' };
+    const rows = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: me, status: 'POSTED', postedAt: { gte: since } }, orderBy: { postedAt: 'asc' }, take: 1000, select: { destination: true, amountMinor: true, postedAt: true } });
+    return { items: detectRecurring(rows), note: 'Detected from your payment history. This is informational only.' };
   }
 }

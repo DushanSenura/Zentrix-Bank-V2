@@ -26,3 +26,7 @@ TOTP replay within a 30 s window is not blocked; no document image upload (objec
 * New permission `branches.manage` (Branch Manager, Bank Administrator, Super Administrator). Disputes, tickets and appointments use `support.manage`; requesting a reversal from a dispute additionally needs `transactions.adjust`.
 * Customers can only read, attach to and download from their own tickets and disputes; another customer's id returns 404 and records a security event. Internal staff notes are never returned to customers.
 * Uploads: 5 MB limit, PNG/JPEG/PDF only (by file signature, not name or declared type), client file names are sanitised, downloads are `nosniff` and `no-store`.
+
+## Phase 8 additions
+* Risk alerts need `risk.review`; system health needs `reports.read`; the staff notification inbox is open to any signed-in staff member and returns only their own rows. Resolving an alert needs a written note and is audited. No endpoint lets an alert block, freeze or reverse anything.
+* AI: the customer chooses whether their spending totals may accompany a question; names, account numbers and long digit runs are never sent. The model cannot call any banking operation, and the prompt tells it to treat the question as data. Model output is shown as plain text and labelled as AI-written.

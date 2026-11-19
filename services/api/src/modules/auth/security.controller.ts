@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { AuditService } from '../../common/audit.service';
+import { queueNotifications } from '../../common/notify';
 import { PrismaService } from '../../common/prisma.service';
 import { ZodPipe } from '../../common/zod.pipe';
 import { hashSecret, passwordProblem, pinProblem, verifySecret } from '../../security/password';
@@ -92,11 +93,15 @@ export class SecurityController {
 
   @Post('devices')
   async trust(@CurrentUser() u: AuthUser, @Body(new ZodPipe(deviceSchema)) b: z.infer<typeof deviceSchema>, @Req() _r: Request) {
+    const existing = await this.prisma.trustedDevice.findUnique({ where: { userId_fingerprint: { userId: u.id, fingerprint: b.fingerprint } } });
+    const others = existing ? 0 : await this.prisma.trustedDevice.count({ where: { userId: u.id, revokedAt: null } });
     const d = await this.prisma.trustedDevice.upsert({
       where: { userId_fingerprint: { userId: u.id, fingerprint: b.fingerprint } },
       update: { revokedAt: null, label: b.label, lastSeenAt: new Date() },
       create: { userId: u.id, fingerprint: b.fingerprint, label: b.label, lastSeenAt: new Date() },
     });
+    // Login alert: a NEW device appearing on an account that already had others is worth telling the customer about.
+    if (others > 0) await queueNotifications(this.prisma, 'security.new_device', [{ userId: u.id, category: 'SECURITY', title: 'New device added', body: `${b.label ?? 'A new device'} was added to your account. If this was not you, change your password and remove it in the Security centre.` }]);
     await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.device_trusted', subjectType: 'TrustedDevice', subjectId: d.id });
     return { id: d.id };
   }

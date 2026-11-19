@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, LifeBuoy, AlertTriangle, MapPin, type LucideIcon } from 'lucide-react'
+import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, LifeBuoy, AlertTriangle, MapPin, ShieldAlert, Activity, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
@@ -28,6 +28,8 @@ export const NAV: { group: string; items: Item[] }[] = [
     { to: '/branches', label: 'Branches', icon: MapPin, any: ['branches.manage', 'support.manage'] },
   ] },
   { group: 'Governance', items: [
+    { to: '/risk', label: 'Risk alerts', icon: ShieldAlert, any: ['risk.review'] },
+    { to: '/health', label: 'System health', icon: Activity, any: ['reports.read'] },
     { to: '/audit', label: 'Audit log', icon: ScrollText, any: ['audit.read'] },
     { to: '/staff', label: 'Staff', icon: UserCog, any: ['staff.manage'] },
     { to: '/roles', label: 'Roles', icon: ShieldCheck, any: ['staff.manage'] },

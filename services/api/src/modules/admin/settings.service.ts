@@ -23,6 +23,11 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'cards.maxDailyLimitMinor', label: 'Maximum card daily limit', group: 'Cards', type: 'int', min: 0, max: 100_000_000_000, default: 50_000_000, help: 'Minor units' },
   { key: 'fd.earlyPenaltyBps', label: 'Fixed deposit early-closure penalty', group: 'Deposits', type: 'int', min: 0, max: 5000, default: 300, help: 'Basis points taken off the rate (300 = 3.00 points)' },
   { key: 'adjustments.maxMinor', label: 'Maximum single ledger adjustment', group: 'Operations', type: 'int', min: 100, max: 100_000_000_000, default: 10_000_000, help: 'Minor units. Adjustments always need a second approver.' },
+  { key: 'risk.highValueMinor', label: 'High-value payment alert threshold', group: 'Risk', type: 'int', min: 100, max: 100_000_000_000, default: 50_000_000, help: 'Minor units. Payments at or above this raise an alert for staff review. Alerts never block a payment.' },
+  { key: 'risk.velocityCount', label: 'Rapid payments alert (count in 10 minutes)', group: 'Risk', type: 'int', min: 2, max: 100, default: 5 },
+  { key: 'risk.newPayeeMinor', label: 'Large first payment to a new payee', group: 'Risk', type: 'int', min: 100, max: 100_000_000_000, default: 20_000_000, help: 'Minor units' },
+  { key: 'risk.newDeviceMinor', label: 'Large payment soon after a new device', group: 'Risk', type: 'int', min: 100, max: 100_000_000_000, default: 10_000_000, help: 'Minor units; looks at devices added in the last 24 hours' },
+  { key: 'risk.anomalyEnabled', label: 'Anomaly detection experiment', group: 'Risk', type: 'bool', default: false, help: 'Statistical experiment, not a certified control. It only raises explainable alerts for review.' },
   { key: 'maintenance.enabled', label: 'Maintenance mode', group: 'System', type: 'bool', default: false, help: 'Customers see a maintenance notice; staff can still sign in.' },
   { key: 'maintenance.message', label: 'Maintenance message', group: 'System', type: 'string', max: 200, default: 'Zentrix Bank is being updated. Please try again shortly.' },
 ];

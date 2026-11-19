@@ -926,3 +926,37 @@ model PaymentTemplate {
 
   @@unique([customerId, name])
 }
+
+// ───────────────────────── Phase 8: risk monitoring and reminders ─────────────────────────
+
+/// A rule hit raised for STAFF REVIEW. Alerts never block, reverse or restrict anything by themselves.
+model RiskAlert {
+  id             String    @id @default(uuid()) @db.Uuid
+  ruleCode       String // HIGH_VALUE | VELOCITY | NEW_PAYEE_LARGE | NEW_DEVICE_ACTIVITY | ANOMALY_EXPERIMENT
+  severity       String // LOW | MEDIUM | HIGH
+  customerId     String    @db.Uuid
+  paymentId      String?   @db.Uuid
+  summary        String
+  details        Json // the numbers behind the rule hit, so the alert is explainable
+  status         String    @default("OPEN") // OPEN | INVESTIGATING | CLEARED | ESCALATED
+  assignedToId   String?   @db.Uuid
+  resolutionNote String?
+  resolvedById   String?   @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([ruleCode, paymentId])
+  @@index([status, createdAt])
+  @@index([customerId, createdAt])
+}
+
+/// Makes reminder jobs idempotent: one reminder per (kind, subject, due key).
+model ReminderLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  kind      String
+  subjectId String   @db.Uuid
+  dueKey    String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, subjectId, dueKey])
+}
