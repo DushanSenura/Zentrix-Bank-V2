@@ -1,0 +1,20 @@
+{
+  "name": "zentrix-bank-v2",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Zentrix Bank V2 - full-stack digital banking SIMULATION platform (fictional data, no real banking networks).",
+  "packageManager": "pnpm@10.15.1",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "db:up": "docker compose up -d postgres redis",
+    "db:generate": "pnpm --filter @zentrix/database generate",
+    "db:migrate": "pnpm --filter @zentrix/database migrate:dev",
+    "db:seed": "pnpm --filter @zentrix/database seed",
+    "api:dev": "pnpm --filter @zentrix/api dev",
+    "worker:dev": "pnpm --filter @zentrix/worker dev",
+    "admin:dev": "pnpm --filter @zentrix/admin dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

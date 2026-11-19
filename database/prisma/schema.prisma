@@ -1,0 +1,483 @@
+// Zentrix Bank V2 - core schema (Phase 1 foundation).
+// Money is ALWAYS integer minor units (BigInt). No floats for authoritative money.
+// Remaining domains (cards, FD, loans, support, ...) are added in their own phases - see docs/database/schema-roadmap.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Identity & security ─────────────────────────
+
+enum UserType {
+  CUSTOMER
+  STAFF
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  MORE_INFO_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id               String     @id @default(uuid()) @db.Uuid
+  type             UserType
+  username         String     @unique
+  email            String     @unique
+  phone            String?
+  passwordHash     String // Argon2id
+  status           UserStatus @default(PENDING_VERIFICATION)
+  failedLogins     Int        @default(0)
+  lockedUntil      DateTime?
+  mfaSecretEnc     String? // encrypted TOTP secret (mandatory for staff)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  customer         CustomerProfile?
+  staff            StaffProfile?
+  roles            UserRole[]
+  sessions         Session[]
+  devices          TrustedDevice[]
+  loginHistory     LoginHistory[]
+  securityEvents   SecurityEvent[]
+
+  @@index([type, status])
+}
+
+model CustomerProfile {
+  userId          String    @id @db.Uuid
+  customerNumber  String    @unique
+  fullName        String
+  dateOfBirth     DateTime? @db.Date
+  nationalIdEnc   String? // encrypted; never logged
+  address         Json?
+  kycStatus       KycStatus @default(NOT_SUBMITTED)
+  kycReviewedById String?   @db.Uuid
+  kycReviewedAt   DateTime?
+  kycNote         String?
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id])
+  accounts        Account[]
+  beneficiaries   Beneficiary[]
+  applications    AccountApplication[]
+
+  @@index([kycStatus])
+}
+
+model StaffProfile {
+  userId     String   @id @db.Uuid
+  employeeNo String   @unique
+  fullName   String
+  branchId   String?  @db.Uuid
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique // e.g. LOAN_OFFICER
+  name        String
+  system      Boolean          @default(false)
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique // e.g. loans.approve
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String @db.Uuid
+  roleId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique // hash only; rotated on every refresh
+  deviceId         String?   @db.Uuid
+  ip               String?
+  userAgent        String?
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+model TrustedDevice {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  fingerprint String
+  label       String?
+  trustedAt   DateTime  @default(now())
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fingerprint])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  identifier String? // as typed; masked at write time
+  success   Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model SecurityEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  kind      String // e.g. FORBIDDEN_RESOURCE_ACCESS, PASSWORD_CHANGED
+  severity  String   @default("INFO")
+  detail    Json?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([kind, createdAt])
+}
+
+// ───────────────────────── Accounts ─────────────────────────
+
+enum AccountKind {
+  SAVINGS
+  CURRENT
+  FIXED_DEPOSIT
+  FOREIGN_CURRENCY
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  SUSPENDED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model AccountProduct {
+  id               String      @id @default(uuid()) @db.Uuid
+  code             String      @unique
+  name             String
+  kind             AccountKind
+  currency         String      @default("LKR")
+  minOpeningMinor  BigInt      @default(100000) // V1 default LKR 1,000; bank-configurable
+  interestRateBps  Int         @default(0)
+  allowOverdraft   Boolean     @default(false)
+  active           Boolean     @default(true)
+  accounts         Account[]
+  applications     AccountApplication[]
+}
+
+model Account {
+  id             String        @id @default(uuid()) @db.Uuid
+  customerId     String        @db.Uuid
+  productId      String        @db.Uuid
+  accountNumber  String        @unique
+  nickname       String?
+  currency       String        @default("LKR")
+  status         AccountStatus @default(ACTIVE)
+  openedAt       DateTime      @default(now())
+  closedAt       DateTime?
+
+  customer       CustomerProfile @relation(fields: [customerId], references: [userId])
+  product        AccountProduct  @relation(fields: [productId], references: [id])
+  ledgerAccount  LedgerAccount?
+  statusHistory  AccountStatusHistory[]
+
+  @@index([customerId, status])
+}
+
+model AccountStatusHistory {
+  id          String        @id @default(uuid()) @db.Uuid
+  accountId   String        @db.Uuid
+  fromStatus  AccountStatus?
+  toStatus    AccountStatus
+  reasonCode  String
+  actorId     String?       @db.Uuid
+  createdAt   DateTime      @default(now())
+  account     Account       @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+}
+
+model AccountApplication {
+  id               String            @id @default(uuid()) @db.Uuid
+  customerId       String            @db.Uuid
+  productId        String            @db.Uuid
+  status           ApplicationStatus @default(SUBMITTED)
+  requestedNickname String?
+  decisionReason   String?
+  decidedById      String?           @db.Uuid
+  decidedAt        DateTime?
+  createdAt        DateTime          @default(now())
+
+  customer         CustomerProfile   @relation(fields: [customerId], references: [userId])
+  product          AccountProduct    @relation(fields: [productId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model Beneficiary {
+  id            String          @id @default(uuid()) @db.Uuid
+  customerId    String          @db.Uuid
+  bankCode      String // 'ZENTRIX' or simulated external bank code
+  accountNumber String
+  holderName    String
+  nickname      String?
+  favorite      Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  deletedAt     DateTime?
+  customer      CustomerProfile @relation(fields: [customerId], references: [userId])
+
+  @@unique([customerId, bankCode, accountNumber])
+}
+
+// ───────────────────────── Double-entry ledger ─────────────────────────
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum Direction {
+  DEBIT
+  CREDIT
+}
+
+enum JournalStatus {
+  POSTED
+  REVERSED
+}
+
+/// A ledger account is either linked to a customer Account (a LIABILITY of the bank - customer deposits)
+/// or is a bank-internal account (cash/settlement, fee income, etc.).
+model LedgerAccount {
+  id         String            @id @default(uuid()) @db.Uuid
+  code       String            @unique
+  name       String
+  type       LedgerAccountType
+  currency   String
+  accountId  String?           @unique @db.Uuid
+  createdAt  DateTime          @default(now())
+
+  account    Account?          @relation(fields: [accountId], references: [id])
+  postings   LedgerPosting[]
+}
+
+/// Append-only. Rows are never updated except the status flag REVERSED, and never deleted.
+model LedgerJournal {
+  id                 String         @id @default(uuid()) @db.Uuid
+  reference          String         @unique // human/receipt reference
+  kind               String // TRANSFER, FEE, FD_OPEN, ADJUSTMENT, REVERSAL ...
+  currency           String
+  status             JournalStatus  @default(POSTED)
+  description        String?
+  reversesJournalId  String?        @unique @db.Uuid
+  paymentId          String?        @unique @db.Uuid
+  postedAt           DateTime       @default(now())
+
+  postings           LedgerPosting[]
+  reverses           LedgerJournal? @relation("Reversal", fields: [reversesJournalId], references: [id])
+  reversedBy         LedgerJournal? @relation("Reversal")
+  payment            PaymentInstruction? @relation(fields: [paymentId], references: [id])
+}
+
+model LedgerPosting {
+  id              String        @id @default(uuid()) @db.Uuid
+  journalId       String        @db.Uuid
+  ledgerAccountId String        @db.Uuid
+  direction       Direction
+  amountMinor     BigInt // > 0, enforced by DB CHECK
+  currency        String
+  createdAt       DateTime      @default(now())
+
+  journal         LedgerJournal @relation(fields: [journalId], references: [id])
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+
+  @@index([ledgerAccountId, createdAt])
+  @@index([journalId])
+}
+
+// ───────────────────────── Payments ─────────────────────────
+
+enum PaymentStatus {
+  CREATED
+  AWAITING_AUTHORIZATION
+  AUTHORIZED
+  PENDING_PROCESSING
+  POSTED
+  FAILED
+  REJECTED
+  CANCELLED
+  REVERSED
+}
+
+enum PaymentKind {
+  OWN_TRANSFER
+  INTERNAL_TRANSFER
+  INTERBANK_TRANSFER
+  BILL_PAYMENT
+  QR_PAYMENT
+  LOAN_INSTALMENT
+}
+
+model PaymentInstruction {
+  id               String        @id @default(uuid()) @db.Uuid
+  reference        String        @unique
+  kind             PaymentKind
+  status           PaymentStatus @default(CREATED)
+  initiatorId      String        @db.Uuid
+  sourceAccountId  String        @db.Uuid
+  destination      Json // validated server-side; shape depends on kind
+  amountMinor      BigInt
+  feeMinor         BigInt        @default(0) // computed by the backend only
+  currency         String
+  scheduledFor     DateTime?
+  failureCode      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  journal          LedgerJournal?
+  authorizations   PaymentAuthorization[]
+
+  @@index([initiatorId, createdAt])
+  @@index([sourceAccountId, createdAt])
+  @@index([status, scheduledFor])
+}
+
+model PaymentAuthorization {
+  id          String             @id @default(uuid()) @db.Uuid
+  paymentId   String             @db.Uuid
+  method      String // PIN | BIOMETRIC_ATTESTATION | OTP
+  attempts    Int                @default(0)
+  verifiedAt  DateTime?
+  expiresAt   DateTime
+  payment     PaymentInstruction @relation(fields: [paymentId], references: [id])
+}
+
+model IdempotencyRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  key             String
+  userId          String   @db.Uuid
+  scope           String // e.g. 'POST /v1/payments'
+  requestHash     String // same key + different body => 422
+  responseStatus  Int?
+  responseBody    Json?
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime
+
+  @@unique([userId, scope, key])
+}
+
+// ───────────────────────── Operations ─────────────────────────
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Maker-checker. The checker (decidedBy) must differ from the maker (requestedBy) - enforced in code and by CHECK.
+model ApprovalRequest {
+  id           String         @id @default(uuid()) @db.Uuid
+  kind         String // LOAN_DISBURSEMENT, ACCOUNT_ADJUSTMENT ...
+  subjectType  String
+  subjectId    String
+  payload      Json
+  status       ApprovalStatus @default(PENDING)
+  requestedBy  String         @db.Uuid
+  decidedBy    String?        @db.Uuid
+  reason       String?
+  createdAt    DateTime       @default(now())
+  decidedAt    DateTime?
+
+  @@index([status, kind])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  actorId     String?  @db.Uuid
+  actorType   String // CUSTOMER | STAFF | SYSTEM
+  action      String
+  subjectType String?
+  subjectId   String?
+  reasonCode  String?
+  metadata    Json? // already masked
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([subjectType, subjectId])
+  @@index([action, createdAt])
+}
+
+/// Transactional outbox: written in the same DB transaction as the business change, delivered by the worker.
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  topic       String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+  attempts    Int       @default(0)
+  lastError   String?
+
+  @@index([publishedAt, createdAt])
+}
+
+model SystemConfiguration {
+  key       String   @id
+  value     Json
+  updatedBy String?  @db.Uuid
+  updatedAt DateTime @updatedAt
+}

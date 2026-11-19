@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* Zentrix brand tokens (see docs/design-system). Light by default, dark via .dark or OS preference. */
+:root {
+  --zx-primary: #155eef;
+  --zx-navy: #071b45;
+  --zx-cyan: #39c7f4;
+  --zx-bg: #f5f8ff;
+  --zx-surface: #ffffff;
+  --zx-text: #0b1b3b;
+  --zx-muted: #54627f;
+  --zx-ok: #13a77a;
+  --zx-warn: #e5a138;
+  --zx-err: #df4b5b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --zx-bg: #07111f;
+    --zx-surface: #132540;
+    --zx-text: #eaf1ff;
+    --zx-muted: #9db0d3;
+  }
+}
+@theme inline {
+  --color-primary: var(--zx-primary);
+  --color-navy: var(--zx-navy);
+  --color-cyan: var(--zx-cyan);
+  --color-bg: var(--zx-bg);
+  --color-surface: var(--zx-surface);
+  --color-ink: var(--zx-text);
+  --color-muted: var(--zx-muted);
+  --color-ok: var(--zx-ok);
+  --color-warn: var(--zx-warn);
+  --color-err: var(--zx-err);
+}
+body { margin: 0; background: var(--zx-bg); color: var(--zx-text); font-family: Manrope, system-ui, sans-serif; }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
