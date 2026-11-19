@@ -1,7 +1,7 @@
 import { ApiError } from '../services/api'
 
 /** Shared look so every admin page reads the same. */
-export const input = 'rounded-lg border border-black/15 bg-surface px-3 py-1.5 text-sm'
+export const input = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm'
 export const card = 'rounded-2xl bg-surface p-5 ring-1 ring-black/5'
 export const btn = 'rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60'
 export const th = 'px-4 py-3 font-medium'

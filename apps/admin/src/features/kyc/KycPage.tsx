@@ -24,7 +24,7 @@ export default function KycPage() {
             <div className="font-semibold">{k.fullName} <span className="text-sm font-normal text-muted">{k.customerNumber} · {k.email}</span></div>
             <div className="mt-1 text-sm text-muted">ID {k.nationalIdMasked} · DOB {k.dateOfBirth} · {k.address?.line1}, {k.address?.city}</div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <input aria-label="Reason" placeholder="Reason (required to reject / request info)" className="min-w-64 flex-1 rounded-lg border border-black/15 bg-surface px-3 py-1.5 text-sm"
+              <input aria-label="Reason" placeholder="Reason (required to reject / request info)" className="min-w-64 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm"
                 value={reason[k.userId] ?? ''} onChange={(e) => setReason({ ...reason, [k.userId]: e.target.value })} />
               <button className={`${btn} bg-ok`} disabled={decide.isPending} onClick={() => decide.mutate({ userId: k.userId, decision: 'APPROVE' })}>Approve</button>
               <button className={`${btn} bg-warn`} disabled={decide.isPending} onClick={() => decide.mutate({ userId: k.userId, decision: 'REQUEST_INFO' })}>Request info</button>

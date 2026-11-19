@@ -18,3 +18,7 @@ uploads/
 key.properties
 .local-dev-credentials.json
 *.tsbuildinfo
+
+infrastructure/.env.staging
+infrastructure/backups/
+*.setup.json

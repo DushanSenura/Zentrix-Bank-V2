@@ -94,7 +94,7 @@ export default function AdminLayout() {
           <button className="rounded-lg p-2 hover:bg-black/5 md:hidden" aria-label="Open menu" onClick={() => setMobileOpen((v) => !v)}><Menu size={20} /></button>
           <button className="hidden rounded-lg p-2 hover:bg-black/5 md:block" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setCollapsed((v) => !v)}>{collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}</button>
           <span className="rounded-full bg-black/5 px-3 py-1 text-xs text-muted">Simulation environment</span>
-          <select aria-label="Theme" value={theme} onChange={(e) => { const t = e.target.value as Theme; setTheme(t); applyTheme(t) }} className="ml-auto rounded-lg border border-black/15 bg-surface px-2 py-1.5 text-sm">
+          <select aria-label="Theme" value={theme} onChange={(e) => { const t = e.target.value as Theme; setTheme(t); applyTheme(t) }} className="ml-auto rounded-lg border border-line bg-surface px-2 py-1.5 text-sm">
             <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
           </select>
           <span className="text-sm">{me.fullName ?? me.username}</span>

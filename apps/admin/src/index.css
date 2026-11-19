@@ -12,6 +12,7 @@
   --zx-ok: #13a77a;
   --zx-warn: #e5a138;
   --zx-err: #df4b5b;
+  --zx-line: #7a879f; /* form control borders: at least 3:1 against the surface (WCAG 1.4.11) */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -19,6 +20,7 @@
     --zx-surface: #132540;
     --zx-text: #eaf1ff;
     --zx-muted: #9db0d3;
+    --zx-line: #6f86b0;
   }
 }
 :root[data-theme='dark'] {
@@ -26,6 +28,7 @@
   --zx-surface: #132540;
   --zx-text: #eaf1ff;
   --zx-muted: #9db0d3;
+  --zx-line: #6f86b0;
 }
 @theme inline {
   --color-primary: var(--zx-primary);
@@ -35,6 +38,7 @@
   --color-surface: var(--zx-surface);
   --color-ink: var(--zx-text);
   --color-muted: var(--zx-muted);
+  --color-line: var(--zx-line);
   --color-ok: var(--zx-ok);
   --color-warn: var(--zx-warn);
   --color-err: var(--zx-err);

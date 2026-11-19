@@ -19,6 +19,7 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_ACCESS_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
       DATA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      INTERNAL_JOB_TOKEN: ci-only-internal-job-token-0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -41,3 +42,32 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit            # fails on any known vulnerability, dev dependencies included
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the staging compose file
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-placeholder
+          POSTGRES_DB: ci
+          REDIS_PASSWORD: ci-placeholder
+          JWT_ACCESS_SECRET: ci-placeholder-ci-placeholder-ci-placeholder
+          DATA_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+          INTERNAL_JOB_TOKEN: ci-placeholder-ci-placeholder-ci-placeholder
+        run: docker compose -f infrastructure/docker-compose.staging.yml config -q
+      - name: Build the backend image
+        run: docker build -f infrastructure/docker/backend.Dockerfile -t zentrix-backend:ci .
+      - name: Build the admin image
+        run: docker build -f infrastructure/docker/admin.Dockerfile -t zentrix-admin:ci .

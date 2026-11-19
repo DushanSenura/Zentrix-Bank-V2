@@ -35,7 +35,7 @@ export default function PaymentsPage() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 id="pay-h" className="text-2xl font-semibold">Transaction monitoring</h1>
         <label className="ml-auto text-sm">Status{' '}
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-lg border border-black/15 bg-surface px-2 py-1.5">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1.5">
             {STATUSES.map((s) => <option key={s} value={s}>{s === '' ? 'All' : s.replaceAll('_', ' ').toLowerCase()}</option>)}
           </select>
         </label>
@@ -73,7 +73,7 @@ export default function PaymentsPage() {
           <h2 className="font-semibold">Reverse {target.reference} ({formatMinor(target.amountMinor, target.currency)})</h2>
           <p className="mb-3 text-sm text-muted">Nothing moves until a different staff member approves. The original entries stay in the ledger.</p>
           <div className="flex flex-wrap gap-2">
-            <input aria-label="Reversal reason" placeholder="Reason (required)" className="min-w-72 flex-1 rounded-lg border border-black/15 bg-surface px-3 py-1.5 text-sm" value={why} onChange={(e) => setWhy(e.target.value)} />
+            <input aria-label="Reversal reason" placeholder="Reason (required)" className="min-w-72 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm" value={why} onChange={(e) => setWhy(e.target.value)} />
             <button className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60" disabled={request.isPending || why.trim().length < 3} onClick={() => request.mutate()}>Submit request</button>
             <button className="rounded-lg bg-navy px-3 py-1.5 text-sm font-medium text-white" onClick={() => setTarget(null)}>Cancel</button>
           </div>

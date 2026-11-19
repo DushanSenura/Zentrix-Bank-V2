@@ -79,7 +79,7 @@ export class StaffService {
       await tx.outboxEvent.create({ data: { topic: 'staff.invited', payload: { userId: u.id } } });
       return u;
     });
-    return { userId: created.id, username, ...(this.env.APP_ENV === 'development' ? { setupToken: token } : {}) };
+    return { userId: created.id, username, ...(this.env.APP_ENV === 'development' || (this.env.APP_ENV === 'staging' && this.env.ALLOW_SETUP_TOKEN_IN_RESPONSE) ? { setupToken: token } : {}) };
   }
 
   /** Public, single-use. The invitee chooses a password and receives their authenticator secret exactly once. */

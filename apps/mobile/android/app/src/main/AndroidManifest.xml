@@ -6,7 +6,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
-        android:label="zentrix_bank"
+        android:label="Zentrix Bank"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

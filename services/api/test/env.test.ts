@@ -22,6 +22,15 @@ describe('loadEnv', () => {
       expect(String(e)).not.toContain('short-secret-value');
     }
   });
+  it('treats empty optional values (as passed by container platforms) as not configured, but never an empty required secret', () => {
+    const e = loadEnv({ ...base, ANTHROPIC_API_KEY: '', AI_MODEL: '', INTERNAL_JOB_TOKEN: '', ALLOW_SETUP_TOKEN_IN_RESPONSE: '' });
+    expect(e.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(e.INTERNAL_JOB_TOKEN).toBeUndefined();
+    expect(e.ALLOW_SETUP_TOKEN_IN_RESPONSE).toBe(false);
+    expect(() => loadEnv({ ...base, JWT_ACCESS_SECRET: '' })).toThrow(/JWT_ACCESS_SECRET/);
+    expect(() => loadEnv({ ...base, ANTHROPIC_API_KEY: 'short' })).toThrow(/ANTHROPIC_API_KEY/); // a set-but-bad value is still an error
+  });
+
   it('rejects a wrong-length encryption key', () => {
     expect(() => loadEnv({ ...base, DATA_ENCRYPTION_KEY: Buffer.alloc(16).toString('base64') })).toThrowError(/32 bytes/);
   });

@@ -2,7 +2,7 @@
 
 A full-stack digital banking **simulation** platform: Flutter customer app, React admin portal, NestJS API, PostgreSQL double-entry ledger, BullMQ worker. Fictional data and simulated funds only — **not** for real banking use. V1 reference: https://github.com/DushanSenura/Zentrix-Bank (read-only).
 
-**Status:** Phase 1 of 10 complete. See [PROGRESS.md](PROGRESS.md) for exact state and next steps, and [docs/v1-migration](docs/v1-migration/v1-audit-and-matrix.md) for the V1→V2 matrix.
+**Status:** Phases 1-10 built (staging-ready simulation; see the limits in PROGRESS.md). See [PROGRESS.md](PROGRESS.md) for exact state and next steps, and [docs/v1-migration](docs/v1-migration/v1-audit-and-matrix.md) for the V1→V2 matrix.
 
 ## Prerequisites
 Node ≥ 20, pnpm 10, Docker, Flutter 3.x.
@@ -32,7 +32,10 @@ cd apps/mobile && flutter analyze && flutter test
 
 ## Layout
 `apps/mobile` · `apps/admin` · `services/api` · `services/worker` · `database` · `docs` · `.github/workflows`
-(`packages/*`, `infrastructure/` are reserved for later phases.)
+`infrastructure/` holds the staging compose stack, Dockerfiles, backup scripts and smoke test.
 
 ## Security notes
 No secrets are committed; `.env` is git-ignored. No demo passwords exist yet — seed/staff provisioning arrives with Phase 2 and will generate local-only credentials. Production use is out of scope.
+
+## Deploy (staging)
+See [docs/deployment/staging.md](docs/deployment/staging.md), [backup-restore](docs/deployment/backup-restore.md), [monitoring](docs/deployment/monitoring.md), [Android](docs/deployment/android-release.md) and [iOS](docs/deployment/ios-release.md) notes, the [release checklist](docs/release/checklist.md) and [release notes](docs/release/v2.0.0-release-notes.md). Production banking use is out of scope.

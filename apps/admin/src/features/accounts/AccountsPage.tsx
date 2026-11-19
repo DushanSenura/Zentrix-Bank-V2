@@ -14,7 +14,7 @@ interface AccountItem {
 const TRANSITIONS: Record<string, string[]> = {
   ACTIVE: ['FROZEN', 'SUSPENDED', 'CLOSED'], FROZEN: ['ACTIVE', 'SUSPENDED', 'CLOSED'], SUSPENDED: ['ACTIVE', 'CLOSED'], CLOSED: [],
 }
-const input = 'rounded-lg border border-black/15 bg-surface px-3 py-1.5 text-sm'
+const input = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm'
 const errMsg = (e: unknown) => (e instanceof ApiError ? e.message : 'Request failed')
 
 function Applications() {

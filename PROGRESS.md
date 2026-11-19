@@ -110,5 +110,20 @@ NOT done / limits:
 * Responsive layouts, light/dark themes and animations were checked only through the above tests (themes in the mobile guideline tests, reduced motion on one chart); nothing was viewed on real screens or in a real browser. GitHub Actions has still never run. `pnpm.overrides` for three build-tool packages are a stopgap.
 * End-to-end tests across mobile, API and admin together do not exist; each layer is tested against fakes or the real API separately.
 
-## Next: Phase 10 — Deployment and release preparation
-Per the build prompt: environments, backups, secrets, staging, Android release build, iOS build preparation, monitoring, icons, documentation, release checklist, staging end-to-end tests and release notes. Production banking use stays out of scope.
+## Phase 10 — Deployment and release preparation: DONE with listed gaps (verified 2026-11-20)
+Verified: typecheck, build, `flutter analyze`, audit clean; API 196 tests (6 new + 1 env), worker 5, admin 41, Flutter 89. **A staging stack was built from scratch with Docker on this machine** (postgres, redis, one-off migrate+seed, api, worker, nginx admin), reached healthy, passed `infrastructure/scripts/smoke.mjs` (12 checks including register, sign-in, refresh rotation), had its first administrator created with the bootstrap CLI, and `verify-backup.sh` restored a dump into a scratch database with matching row counts (54 tables) and a balanced ledger. The stack was then torn down. An Android release APK (71 MB) built with test signing.
+
+Built: backend and admin Dockerfiles, nginx config with CSP and security headers, staging compose (no published database ports, Redis password), env example, `bootstrap-admin` CLI (first Super Administrator; token written to an owner-only file, never printed, delivered inside the DB transaction so a failed write rolls the admin back), backup/restore/verify scripts, smoke test, release signing config (fails without a key unless explicitly overridden), shrinking, launcher icons for Android and iOS generated from the brand mark, CI jobs for audit and image builds, deployment/backup/monitoring/Android/iOS docs, release checklist and release notes.
+
+Defects found by actually deploying: the API crashed on start in a container because unset optional variables arrive as empty strings and the env schema rejected them (now treated as unset, tested); outside development a staff invitation's setup token was never delivered anywhere, so invited staff could never finish setup (added the bootstrap CLI and a staging-only `ALLOW_SETUP_TOKEN_IN_RESPONSE`); the bootstrap CLI first created the administrator and only then failed to write the token file (now one transaction); the admin sign-in form had near-invisible input borders in dark theme (new contrast-checked `--zx-line` token, seen in a real browser); release builds were signed with the public debug key (now refused unless a key exists or an explicit test-only flag is passed).
+
+NOT done / limits:
+* **No hosted environment.** "Staging" was a local Docker stack. No cloud deployment, DNS, TLS, domain, managed database, secret manager, load balancer or image registry was set up; nothing was deployed anywhere reachable.
+* **GitHub Actions has never run** (new `security` and `images` jobs included). The first run may differ from local.
+* **Android:** the release APK was test-signed (no release key exists) and never installed or run. Android Lint's `lintVital` crashes with AGP 9.0.1 + Kotlin 2.3.20 and is skipped (documented). **iOS:** nothing built (needs macOS and Apple signing); only assets and docs.
+* Backups are logical dumps only: no point-in-time recovery, no off-host copy, no encryption at rest, no scheduler configured. Images are not slimmed or scanned. Swagger is served in staging.
+* Monitoring is health endpoints and a System health page; no metrics, logs shipping, dashboards or paging. The smoke test is not an end-to-end test of staff workflows.
+* Admin UI still seen in a real browser only at its sign-in page (I did not sign in); mobile app never run on a device.
+
+## Project status
+All ten phases are built to the extent described in each phase section. The unverified items above (real devices, real browser sessions across the admin portal, hosted staging, CI, external security review, native-language review, a live AI model) are what separates this from a release candidate.

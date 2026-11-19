@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/build
+.git
+.github
+.env
+.env.*
+!.env.example
+.local-dev-credentials.json
+apps/mobile
+docs
+**/uploads
+**/*.log
+coverage

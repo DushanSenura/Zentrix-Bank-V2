@@ -22,7 +22,7 @@ export default function LoginPage() {
       else setError(err instanceof ApiError ? err.message : 'Cannot reach the server')
     } finally { setBusy(false) }
   }
-  const field = 'mt-1 w-full rounded-lg border border-black/15 bg-surface px-3 py-2 outline-none focus:ring-2 focus:ring-primary'
+  const field = 'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 outline-none focus:ring-2 focus:ring-primary'
   return (
     <main className="grid min-h-screen place-items-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl bg-surface p-8 shadow-sm ring-1 ring-black/5">

@@ -16,6 +16,9 @@ const schema = z.object({
   // Optional AI answers. Unset => the AI features report themselves as off; nothing else depends on them.
   ANTHROPIC_API_KEY: z.string().min(10).optional(),
   AI_MODEL: z.string().min(3).optional(),
+  // Staging convenience: lets an inviting admin see a new staff member's one-time setup token (there is no email delivery yet).
+  // Never honoured in production.
+  ALLOW_SETUP_TOKEN_IN_RESPONSE: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(600),
   CUSTOMER_SESSION_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   STAFF_SESSION_HOURS: z.coerce.number().int().min(1).max(24).default(12),
@@ -26,7 +29,9 @@ export const ENV = Symbol('ENV');
 
 /** Parses and validates process.env. Throws with a readable message (never echoes secret values). */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = schema.safeParse(source);
+  // Container platforms pass an unset optional variable as an empty string; for optional settings that means "not configured".
+  const cleaned = Object.fromEntries(Object.entries(source).filter(([, v]) => v !== ''));
+  const parsed = schema.safeParse(cleaned);
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
     throw new Error(`Invalid environment configuration - ${msg}`);
