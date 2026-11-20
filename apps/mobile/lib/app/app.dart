@@ -15,6 +15,7 @@ import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
 import '../features/search/search_page.dart';
 import '../features/profile/profile_pages.dart';
+import '../features/profile/two_factor_page.dart';
 import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
@@ -110,6 +111,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: 'devices', builder: (_, _) => const DevicesPage()),
         GoRoute(path: 'history', builder: (_, _) => const LoginHistoryPage()),
         GoRoute(path: 'limits', builder: (_, _) => const LimitsPage()),
+        GoRoute(path: '2fa', builder: (_, _) => const TwoFactorPage()),
         GoRoute(path: 'preferences', builder: (_, _) => const PreferencesPage()),
       ]),
     ],

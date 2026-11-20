@@ -33,6 +33,7 @@ import { AdminSupportController, SupportController } from './modules/support/sup
 import { SupportService } from './modules/support/support.service';
 import { LocalDiskStorage, OBJECT_STORAGE } from './modules/support/storage';
 import { LimitsController, ProfileController } from './modules/customers/profile.controller';
+import { TwoFactorController } from './modules/auth/two-factor.controller';
 import { DemoAccountsController } from './modules/dev/demo-accounts.controller';
 import { AiService } from './modules/ai/ai.service';
 import { AI_PROVIDER, createProvider } from './modules/ai/provider';
@@ -56,7 +57,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController, TwoFactorController],
   providers: [
     AuthService,
     LedgerService,

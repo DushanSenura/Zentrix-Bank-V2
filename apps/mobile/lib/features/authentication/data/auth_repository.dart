@@ -133,8 +133,8 @@ class AuthRepository {
     _refresh = d['refreshToken'] as String;
   }
 
-  Future<Me> login(String identifier, String password, {bool remember = false}) async {
-    final r = await _send(() => _dio.post('/api/v1/auth/login', data: {'identifier': identifier, 'password': password}));
+  Future<Me> login(String identifier, String password, {bool remember = false, String? mfaCode, String? recoveryCode}) async {
+    final r = await _send(() => _dio.post('/api/v1/auth/login', data: {'identifier': identifier, 'password': password, 'mfaCode': ?mfaCode, 'recoveryCode': ?recoveryCode}));
     if (r.data!['userType'] != 'CUSTOMER') throw ApiFailure('not_customer', 'Please use the Zentrix staff portal to sign in.');
     await _adopt(r.data!);
     if (remember) {

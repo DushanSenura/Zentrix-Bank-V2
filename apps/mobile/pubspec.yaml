@@ -46,6 +46,7 @@ dependencies:
   connectivity_plus: ^7.3.2
   url_launcher: ^6.3.3
   geolocator: ^14.0.1
+  crypto: ^3.0.8
 
 dev_dependencies:
   flutter_test:

@@ -396,46 +396,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
   }
 
   Future<void> _book(Branch b) async {
-    final purpose = TextEditingController();
-    DateTime? when;
-    String? err;
-    final done = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, set) => AlertDialog(
-          title: Text('Visit ${b.name}'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: purpose, decoration: const InputDecoration(labelText: 'What do you need help with?')),
-            const SizedBox(height: ZxSpace.sm),
-            OutlinedButton(
-              onPressed: () async {
-                final now = DateTime.now();
-                final d = await showDatePicker(context: ctx, initialDate: now.add(const Duration(days: 2)), firstDate: now.add(const Duration(days: 1)), lastDate: now.add(const Duration(days: 60)));
-                if (d != null) set(() => when = DateTime(d.year, d.month, d.day, 10));
-              },
-              child: Text(when == null ? 'Choose a day' : '${_date(when!)} (about 10:00)'),
-            ),
-            if (err != null) ZxErrorText(err!),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () async {
-                if (purpose.text.trim().length < 3 || when == null) return set(() => err = 'Add a reason and choose a day.');
-                try {
-                  await ref.read(supportRepositoryProvider).bookAppointment(branchId: b.id, purpose: purpose.text.trim(), preferredAt: when!);
-                  if (ctx.mounted) Navigator.pop(ctx, true);
-                } catch (e) {
-                  set(() => err = errorText(e));
-                }
-              },
-              child: const Text('Request visit'),
-            ),
-          ],
-        ),
-      ),
-    );
-    purpose.dispose();
+    final done = await showDialog<bool>(context: context, builder: (_) => _BookDialog(branch: b));
     if (done == true && mounted) {
       ref.invalidate(appointmentsProvider);
       _toast(context, 'Requested. The branch will confirm the time.');
@@ -530,5 +491,58 @@ class AppointmentsPage extends ConsumerWidget {
                     ),
                 ]),
         ),
+      );
+}
+
+/// Owns its text controller so it is disposed only after the dialog has fully closed.
+class _BookDialog extends ConsumerStatefulWidget {
+  const _BookDialog({required this.branch});
+  final Branch branch;
+  @override
+  ConsumerState<_BookDialog> createState() => _BookDialogState();
+}
+
+class _BookDialogState extends ConsumerState<_BookDialog> {
+  final _purpose = TextEditingController();
+  DateTime? _when;
+  String? _err;
+
+  @override
+  void dispose() {
+    _purpose.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text('Visit ${widget.branch.name}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: _purpose, decoration: const InputDecoration(labelText: 'What do you need help with?')),
+          const SizedBox(height: ZxSpace.sm),
+          OutlinedButton(
+            onPressed: () async {
+              final now = DateTime.now();
+              final d = await showDatePicker(context: context, initialDate: now.add(const Duration(days: 2)), firstDate: now.add(const Duration(days: 1)), lastDate: now.add(const Duration(days: 60)));
+              if (d != null && mounted) setState(() => _when = DateTime(d.year, d.month, d.day, 10));
+            },
+            child: Text(_when == null ? 'Choose a day' : '${_date(_when!)} (about 10:00)'),
+          ),
+          if (_err != null) ZxErrorText(_err!),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              if (_purpose.text.trim().length < 3 || _when == null) return setState(() => _err = 'Add a reason and choose a day.');
+              try {
+                await ref.read(supportRepositoryProvider).bookAppointment(branchId: widget.branch.id, purpose: _purpose.text.trim(), preferredAt: _when!);
+                if (mounted) Navigator.pop(context, true);
+              } catch (e) {
+                if (mounted) setState(() => _err = errorText(e));
+              }
+            },
+            child: const Text('Request visit'),
+          ),
+        ],
       );
 }

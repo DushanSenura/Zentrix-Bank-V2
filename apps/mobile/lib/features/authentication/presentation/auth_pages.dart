@@ -75,10 +75,13 @@ class _LoginPageState extends ConsumerState<LoginPage> with FormRunner {
   final _form = GlobalKey<FormState>();
   final _id = TextEditingController();
   final _pw = TextEditingController();
+  final _code = TextEditingController();
   bool _remember = false;
+  bool _needCode = false; // the bank asked for the second step
+  bool _useRecovery = false;
 
   @override
-  void dispose() { _id.dispose(); _pw.dispose(); super.dispose(); }
+  void dispose() { _id.dispose(); _pw.dispose(); _code.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -95,11 +98,26 @@ class _LoginPageState extends ConsumerState<LoginPage> with FormRunner {
             type: MaterialType.transparency,
             child: CheckboxListTile(contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _remember, onChanged: (v) => setState(() => _remember = v ?? false), title: const Text('Remember this device')),
           ),
+          if (_needCode) ...[
+            const SizedBox(height: ZxSpace.sm),
+            TextFormField(controller: _code, autofocus: true, keyboardType: _useRecovery ? TextInputType.text : TextInputType.number, maxLength: _useRecovery ? 14 : 6, autofillHints: const [AutofillHints.oneTimeCode], decoration: InputDecoration(labelText: _useRecovery ? 'Recovery code' : 'Authenticator code', helperText: _useRecovery ? 'One of the codes you saved when you turned on two-step sign-in' : 'The 6-digit code from your authenticator app'), validator: _required),
+            TextButton(onPressed: () => setState(() { _useRecovery = !_useRecovery; _code.clear(); }), child: Text(_useRecovery ? 'Use my authenticator app' : 'Use a recovery code')),
+          ],
           ZxErrorText(error),
           ZxButton(
-            label: 'Sign in',
+            label: _needCode ? 'Verify and sign in' : 'Sign in',
             loading: busy,
-            onPressed: () { if (_form.currentState!.validate()) run(() => ref.read(authControllerProvider.notifier).login(_id.text, _pw.text, remember: _remember)); },
+            onPressed: () {
+              if (!_form.currentState!.validate()) return;
+              run(() async {
+                try {
+                  await ref.read(authControllerProvider.notifier).login(_id.text, _pw.text, remember: _remember, mfaCode: _needCode && !_useRecovery ? _code.text.trim() : null, recoveryCode: _needCode && _useRecovery ? _code.text.trim() : null);
+                } on ApiFailure catch (e) {
+                  if (e.code == 'mfa_required') { setState(() => _needCode = true); return; } // ask for the code instead of showing an error
+                  rethrow;
+                }
+              });
+            },
           ),
           TextButton(onPressed: () => context.push('/forgot'), child: const Text('Forgot password?')),
           if (kDebugMode) _DemoAccounts(onPick: (u, p) => setState(() { _id.text = u; _pw.text = p; })),

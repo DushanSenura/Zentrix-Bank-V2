@@ -20,7 +20,7 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<Me?> restore() async => restoreAs;
   @override
-  Future<Me> login(String identifier, String password, {bool remember = false}) async {
+  Future<Me> login(String identifier, String password, {bool remember = false, String? mfaCode, String? recoveryCode}) async {
     if (failLogin) throw ApiFailure('invalid_credentials', 'Invalid credentials');
     return amaya;
   }

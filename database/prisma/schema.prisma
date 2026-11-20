@@ -44,6 +44,7 @@ model User {
   failedLogins     Int        @default(0)
   lockedUntil      DateTime?
   mfaSecretEnc     String? // encrypted TOTP secret (mandatory for staff)
+  mfaEnabledAt     DateTime? // customers: when two-step sign-in was switched on (the secret alone, before this, is a pending enrolment)
   pinHash          String? // Argon2id hash of the 4/6-digit app PIN
   pinSetAt         DateTime?
   pinFailedAttempts Int      @default(0)
@@ -982,5 +983,16 @@ model CustomerPreference {
   mutedCategories  String[] @default([]) // SECURITY can never be muted
   dailyLimitMinor  BigInt? // customer-chosen; never above the bank maximum; null = bank default
   updatedAt        DateTime @updatedAt
+}
+
+/// One-time recovery codes for customers who lose their authenticator. Only hashes are stored; a code works once.
+model RecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 

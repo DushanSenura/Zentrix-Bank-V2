@@ -6,6 +6,7 @@ import { ENV, type Env } from '../../config/env';
 import { decrypt, randomToken, safeEqualHex, sha256 } from '../../security/crypto';
 import { DUMMY_HASH_PROMISE, hashSecret, passwordProblem, verifySecret } from '../../security/password';
 import { verifyTotp } from '../../security/totp';
+import { normaliseRecovery } from './two-factor.controller';
 import { TokenService } from './token.service';
 
 export interface ClientContext {
@@ -71,7 +72,7 @@ export class AuthService {
     throw new BadRequestException({ code: 'weak_password', message, fields: { password: message } });
   }
 
-  async login(input: { identifier: string; password: string; mfaCode?: string }, ctx: ClientContext): Promise<TokenPair & { userType: string }> {
+  async login(input: { identifier: string; password: string; mfaCode?: string; recoveryCode?: string }, ctx: ClientContext): Promise<TokenPair & { userType: string }> {
     const id = input.identifier.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
       where: { OR: [{ username: id }, { email: id }, { customer: { customerNumber: input.identifier.trim().toUpperCase() } }] },
@@ -106,6 +107,16 @@ export class AuthService {
       if (!user.mfaSecretEnc) return fail('mfa_not_enrolled');
       if (!input.mfaCode) throw new UnauthorizedException({ code: 'mfa_required', message: 'Enter your authenticator code' });
       if (!verifyTotp(decrypt(user.mfaSecretEnc, this.key), input.mfaCode)) return fail('bad_mfa');
+    }
+
+    if (user.type === 'CUSTOMER' && user.mfaEnabledAt && user.mfaSecretEnc) {
+      // Optional two-step sign-in, switched on by the customer. A recovery code stands in for the authenticator and works once.
+      if (!input.mfaCode && !input.recoveryCode) throw new UnauthorizedException({ code: 'mfa_required', message: 'Enter your authenticator code' });
+      const good = input.mfaCode
+        ? verifyTotp(decrypt(user.mfaSecretEnc, this.key), input.mfaCode)
+        : (await this.prisma.recoveryCode.updateMany({ where: { userId: user.id, codeHash: sha256(normaliseRecovery(input.recoveryCode!)), usedAt: null }, data: { usedAt: new Date() } })).count === 1;
+      if (!good) return fail('bad_mfa');
+      if (input.recoveryCode) await this.audit.securityEvent('RECOVERY_CODE_USED', user.id, undefined, 'MEDIUM');
     }
 
     await this.prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });

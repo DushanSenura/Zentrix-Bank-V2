@@ -52,8 +52,8 @@ class AuthController extends Notifier<AuthState> {
     state = AuthState(me: me, restoring: false);
   }
 
-  Future<void> login(String identifier, String password, {bool remember = false}) async {
-    final me = await _repo.login(identifier, password, remember: remember);
+  Future<void> login(String identifier, String password, {bool remember = false, String? mfaCode, String? recoveryCode}) async {
+    final me = await _repo.login(identifier, password, remember: remember, mfaCode: mfaCode, recoveryCode: recoveryCode);
     ref.read(lockProvider.notifier).unlock();
     state = AuthState(me: me, restoring: false);
   }

@@ -73,6 +73,7 @@ class SecurityCenterPage extends ConsumerWidget {
               tile(Icons.devices_other, 'Active sessions', '/security/sessions'),
               tile(Icons.verified_user_outlined, 'Trusted devices', '/security/devices'),
               tile(Icons.history, 'Login history', '/security/history'),
+              tile(Icons.phonelink_lock, 'Two-step sign-in', '/security/2fa'),
               tile(Icons.speed, 'Transfer limits', '/security/limits'),
               tile(Icons.tune, 'App lock & appearance', '/security/preferences'),
             ]))),

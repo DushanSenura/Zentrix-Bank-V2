@@ -24,6 +24,12 @@ class Prefs {
   final Map<String, bool> notifications; // category -> delivered. SECURITY is always delivered and is not listed.
 }
 
+class TwoFactorStatus {
+  const TwoFactorStatus({required this.enabled, required this.recoveryCodesLeft});
+  final bool enabled;
+  final int recoveryCodesLeft;
+}
+
 class LimitsView {
   const LimitsView({required this.dailyMinor, required this.bankMaximumMinor, required this.perTransferMinor, required this.usedTodayMinor, required this.customised});
   final int dailyMinor;
@@ -73,10 +79,25 @@ class ProfileRepository {
     return LimitsView(dailyMinor: _i(j['dailyMinor']), bankMaximumMinor: _i(j['bankMaximumMinor']), perTransferMinor: _i(j['perTransferMinor']), usedTodayMinor: _i(j['usedTodayMinor']), customised: j['customised'] == true);
   }
 
+  Future<TwoFactorStatus> twoFactorStatus() async {
+    final j = await _api.getJson('/api/v1/security/2fa');
+    return TwoFactorStatus(enabled: j['enabled'] == true, recoveryCodesLeft: _i(j['recoveryCodesLeft']));
+  }
+
+  Future<({String secret, String uri})> twoFactorSetup(String pin) async {
+    final j = await _api.postJson('/api/v1/security/2fa/setup', {'pin': pin});
+    return (secret: j['secret'] as String, uri: j['otpauthUri'] as String);
+  }
+
+  Future<List<String>> twoFactorEnable(String code) async => ((await _api.postJson('/api/v1/security/2fa/enable', {'code': code}))['recoveryCodes'] as List).cast<String>();
+  Future<void> twoFactorDisable(String pin, String code) => _api.postJson('/api/v1/security/2fa/disable', {'pin': pin, 'code': code});
+  Future<List<String>> twoFactorNewRecoveryCodes(String pin, String code) async => ((await _api.postJson('/api/v1/security/2fa/recovery-codes', {'pin': pin, 'code': code}))['recoveryCodes'] as List).cast<String>();
+
   Future<void> setDailyLimit(int minor, {String? pin}) => _api.putJson('/api/v1/security/limits', {'dailyMinor': minor, 'pin': ?pin});
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) => ProfileRepository(ref.watch(authRepositoryProvider)));
 final profileProvider = FutureProvider.autoDispose((ref) => ref.watch(profileRepositoryProvider).profile(), retry: noRetry);
 final prefsProvider = FutureProvider.autoDispose((ref) => ref.watch(profileRepositoryProvider).prefs(), retry: noRetry);
+final twoFactorProvider = FutureProvider.autoDispose((ref) => ref.watch(profileRepositoryProvider).twoFactorStatus(), retry: noRetry);
 final limitsProvider = FutureProvider.autoDispose((ref) => ref.watch(profileRepositoryProvider).limits(), retry: noRetry);
