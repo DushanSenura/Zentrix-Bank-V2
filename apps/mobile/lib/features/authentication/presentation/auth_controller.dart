@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/resilience.dart';
 import '../../settings/settings_controller.dart';
 import '../data/auth_repository.dart';
 
 class AuthState {
-  const AuthState({this.me, this.restoring = true});
+  const AuthState({this.me, this.restoring = true, this.notice});
   final Me? me;
+  final String? notice; // why the customer was signed out (shown on the sign-in screen)
   final bool restoring; // true until the first restore attempt finishes (splash)
   bool get signedIn => me != null;
 }
@@ -26,7 +28,20 @@ class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() {
     Future.microtask(_restore);
+    sessionExpiredNotifier.addListener(_onSessionExpired);
+    ref.onDispose(() => sessionExpiredNotifier.removeListener(_onSessionExpired));
     return const AuthState();
+  }
+
+  void _onSessionExpired() {
+    if (!sessionExpiredNotifier.value) return;
+    sessionExpiredNotifier.value = false;
+    if (state.me == null) return;
+    // No server call: the session is already gone. Clear everything local and say why.
+    ref.read(lockProvider.notifier).unlock();
+    ref.read(settingsProvider.notifier).clearCustomerPrefs();
+    _repo.logout().catchError((_) {});
+    state = const AuthState(restoring: false, notice: 'Your session ended, so we signed you out to keep your account safe. Please sign in again.');
   }
 
   Future<void> _restore() async {

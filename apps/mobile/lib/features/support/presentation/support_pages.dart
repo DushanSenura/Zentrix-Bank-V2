@@ -6,6 +6,7 @@ import '../../../core/design_system/async_view.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../../core/design_system/widgets.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../../core/platform/platform_services.dart';
 import '../data/file_sharer.dart';
 import '../data/support_repository.dart';
 
@@ -189,6 +190,10 @@ class DisputesPage extends ConsumerWidget {
 }
 
 // ═════════════════════════ help hub, FAQs and tickets ═════════════════════════
+const _helpline = '+94110000000';
+const _helplineDisplay = '+94 11 000 0000';
+const _supportEmail = 'support@zentrix.test';
+
 class SupportHubPage extends ConsumerWidget {
   const SupportHubPage({super.key});
   @override
@@ -211,6 +216,14 @@ class SupportHubPage extends ConsumerWidget {
               error: (e, _) => Padding(padding: const EdgeInsets.all(ZxSpace.md), child: Text(errorText(e))),
               data: (faqs) => Column(children: [for (final f in faqs) ExpansionTile(title: Text(f.q), childrenPadding: const EdgeInsets.all(ZxSpace.md), expandedAlignment: Alignment.centerLeft, children: [Text(f.a)])]),
             ),
+        const SizedBox(height: ZxSpace.md),
+        const SizedBox(height: ZxSpace.md),
+        Text('Talk to us', style: Theme.of(context).textTheme.titleMedium),
+        GlassCard(blur: false, padding: EdgeInsets.zero, child: Column(children: [
+          ListTile(leading: const Icon(Icons.call_outlined), title: const Text('Call the helpline'), subtitle: const Text(_helplineDisplay), onTap: () => ref.read(linkLauncherProvider).open(phoneUri(_helpline))),
+          ListTile(leading: const Icon(Icons.mail_outline), title: const Text('Email support'), subtitle: const Text(_supportEmail), onTap: () => ref.read(linkLauncherProvider).open(emailUri(_supportEmail, subject: 'Zentrix Bank support'))),
+        ])),
+        const Padding(padding: EdgeInsets.only(top: ZxSpace.xs), child: Text('Fictional contact details for this simulation.', style: TextStyle(fontSize: 12))),
         const SizedBox(height: ZxSpace.md),
         const Text('Zentrix staff will never ask for your PIN, password or authenticator code.', style: TextStyle(fontSize: 12)),
       ]),
@@ -359,6 +372,22 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
   final _city = TextEditingController();
   String _applied = '';
   String? _type;
+  Coordinates? _here; // set only after the customer taps "Near me"
+  String? _locationMessage;
+
+  Future<void> _nearMe() async {
+    try {
+      final c = await ref.read(locationServiceProvider).current();
+      if (mounted) setState(() { _here = c; _locationMessage = null; });
+    } catch (e) {
+      if (mounted) setState(() => _locationMessage = e is LocationDenied ? e.message : 'We could not get your location. You can still search by city.');
+    }
+  }
+
+  Future<void> _open(Uri uri) async {
+    final ok = await ref.read(linkLauncherProvider).open(uri);
+    if (!ok && mounted) _toast(context, 'Your phone has no app to open that.');
+  }
 
   @override
   void dispose() {
@@ -415,7 +444,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final branches = ref.watch(branchFinderProvider((city: _applied, type: _type)));
+    final branches = ref.watch(branchFinderProvider((city: _applied, type: _type, lat: _here?.lat, lng: _here?.lng)));
     return ServicePage(
       title: 'Branches and ATMs',
       actions: [IconButton(tooltip: 'My appointments', icon: const Icon(Icons.event_outlined), onPressed: () => context.push('/support/appointments'))],
@@ -425,7 +454,11 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
           child: Column(children: [
             TextField(controller: _city, textInputAction: TextInputAction.search, decoration: const InputDecoration(labelText: 'City', prefixIcon: Icon(Icons.search)), onSubmitted: (v) => setState(() => _applied = v)),
             const SizedBox(height: ZxSpace.sm),
-            Wrap(spacing: ZxSpace.sm, children: [for (final (label, value) in const [('All', null), ('Branches', 'BRANCH'), ('ATMs', 'ATM')]) ChoiceChip(label: Text(label), selected: _type == value, onSelected: (_) => setState(() => _type = value))]),
+            Wrap(spacing: ZxSpace.sm, children: [
+              for (final (label, value) in const [('All', null), ('Branches', 'BRANCH'), ('ATMs', 'ATM')]) ChoiceChip(label: Text(label), selected: _type == value, onSelected: (_) => setState(() => _type = value)),
+              FilterChip(avatar: const Icon(Icons.my_location, size: 18), label: const Text('Near me'), selected: _here != null, onSelected: (on) => on ? _nearMe() : setState(() => _here = null)),
+            ]),
+            if (_locationMessage != null) Padding(padding: const EdgeInsets.only(top: ZxSpace.xs), child: Text(_locationMessage!, style: const TextStyle(fontSize: 12))),
           ]),
         ),
         Expanded(
@@ -437,12 +470,22 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
                 : ListView(padding: const EdgeInsets.symmetric(horizontal: ZxSpace.md), children: [
                     for (final b in items)
                       Card(
-                        child: ListTile(
-                          leading: Icon(b.type == 'ATM' ? Icons.atm : Icons.account_balance),
-                          title: Text(b.name),
-                          subtitle: Text('${b.address}, ${b.city}${b.hours != null ? '\n${b.hours}' : ''}${b.phone != null ? '\n${b.phone}' : ''}'),
-                          isThreeLine: b.hours != null || b.phone != null,
-                          trailing: b.type == 'BRANCH' ? TextButton(onPressed: () => _book(b), child: const Text('Book')) : null,
+                        child: Padding(
+                          padding: const EdgeInsets.all(ZxSpace.sm),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(b.type == 'ATM' ? Icons.atm : Icons.account_balance),
+                              title: Text(b.name),
+                              subtitle: Text('${b.address}, ${b.city}${b.distanceKm != null ? ' · ${b.distanceKm} km away' : ''}${b.hours != null ? '\n${b.hours}' : ''}${b.phone != null ? '\n${b.phone}' : ''}'),
+                              isThreeLine: b.hours != null || b.phone != null,
+                              trailing: b.type == 'BRANCH' ? TextButton(onPressed: () => _book(b), child: const Text('Book')) : null,
+                            ),
+                            Wrap(spacing: ZxSpace.sm, children: [
+                              if (b.phone != null) TextButton.icon(onPressed: () => _open(phoneUri(b.phone!)), icon: const Icon(Icons.call_outlined, size: 18), label: Text('Call ${b.name}', overflow: TextOverflow.ellipsis)),
+                              if (b.latitude != null && b.longitude != null) TextButton.icon(onPressed: () => _open(mapsUri(b.latitude!, b.longitude!, label: b.name)), icon: const Icon(Icons.directions_outlined, size: 18), label: Text('Directions to ${b.name}', overflow: TextOverflow.ellipsis)),
+                            ]),
+                          ]),
                         ),
                       ),
                   ]),

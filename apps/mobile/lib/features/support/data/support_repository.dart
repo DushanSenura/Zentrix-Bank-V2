@@ -98,7 +98,10 @@ class TicketMessage {
 }
 
 class Branch {
-  const Branch({required this.id, required this.name, required this.city, required this.address, required this.type, this.phone, this.hours});
+  const Branch({required this.id, required this.name, required this.city, required this.address, required this.type, this.phone, this.hours, this.latitude, this.longitude, this.distanceKm});
+  final double? latitude;
+  final double? longitude;
+  final double? distanceKm; // only when the customer asked for places near them
   final String id;
   final String name;
   final String city;
@@ -193,9 +196,9 @@ class SupportRepository {
   Future<void> replyTicket(String id, String body) => _api.postJson('/api/v1/support/tickets/$id/messages', {'body': body});
   Future<void> closeTicket(String id) => _api.postJson('/api/v1/support/tickets/$id/close', {});
 
-  Future<List<Branch>> branches({String? city, String? type}) async => [
-        for (final b in _list(await _api.getJson('/api/v1/branches', query: {if (city != null && city.trim().isNotEmpty) 'city': city.trim(), 'type': ?type})))
-          Branch(id: b['id'] as String, name: b['name'] as String, city: b['city'] as String, address: b['address'] as String, type: b['type'] as String, phone: b['phone'] as String?, hours: b['hours'] as String?),
+  Future<List<Branch>> branches({String? city, String? type, double? lat, double? lng}) async => [
+        for (final b in _list(await _api.getJson('/api/v1/branches', query: {if (city != null && city.trim().isNotEmpty) 'city': city.trim(), 'type': ?type, 'lat': ?lat, 'lng': ?lng})))
+          Branch(id: b['id'] as String, name: b['name'] as String, city: b['city'] as String, address: b['address'] as String, type: b['type'] as String, phone: b['phone'] as String?, hours: b['hours'] as String?, latitude: (b['latitude'] as num?)?.toDouble(), longitude: (b['longitude'] as num?)?.toDouble(), distanceKm: (b['distanceKm'] as num?)?.toDouble()),
       ];
 
   Future<List<Appointment>> appointments() async => [
@@ -224,7 +227,7 @@ final faqsProvider = FutureProvider.autoDispose((ref) => ref.watch(supportReposi
 final ticketsProvider = FutureProvider.autoDispose((ref) => ref.watch(supportRepositoryProvider).tickets(), retry: noRetry);
 final ticketProvider = FutureProvider.autoDispose.family<Ticket, String>((ref, id) => ref.watch(supportRepositoryProvider).ticket(id), retry: noRetry);
 final appointmentsProvider = FutureProvider.autoDispose((ref) => ref.watch(supportRepositoryProvider).appointments(), retry: noRetry);
-final branchFinderProvider = FutureProvider.autoDispose.family<List<Branch>, ({String city, String? type})>((ref, f) => ref.watch(supportRepositoryProvider).branches(city: f.city, type: f.type), retry: noRetry);
+final branchFinderProvider = FutureProvider.autoDispose.family<List<Branch>, ({String city, String? type, double? lat, double? lng})>((ref, f) => ref.watch(supportRepositoryProvider).branches(city: f.city, type: f.type, lat: f.lat, lng: f.lng), retry: noRetry);
 
 /// Hands a downloaded file to the OS share sheet. Overridden in tests so no platform plugin is touched.
 abstract class FileSharer {

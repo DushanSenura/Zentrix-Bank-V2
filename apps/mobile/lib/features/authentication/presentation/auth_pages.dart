@@ -82,7 +82,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with FormRunner {
 
   @override
   Widget build(BuildContext context) {
+    final notice = ref.watch(authControllerProvider.select((s) => s.notice));
     return AuthScaffold(title: 'Welcome back', children: [
+      if (notice != null) Padding(padding: const EdgeInsets.only(bottom: ZxSpace.md), child: Semantics(liveRegion: true, child: Text(notice, textAlign: TextAlign.center, style: TextStyle(color: Theme.of(context).colorScheme.error)))),
       Form(
         key: _form,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

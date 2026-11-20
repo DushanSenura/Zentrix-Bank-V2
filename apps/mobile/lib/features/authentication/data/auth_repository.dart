@@ -6,13 +6,16 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/resilience.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/storage/token_store.dart';
 import '../../support/data/support_repository.dart' show DownloadedFile;
 
 /// Customer-safe failure. Never carries URLs, headers or raw server text beyond the API's own message.
 class ApiFailure implements Exception {
-  ApiFailure(this.code, this.message, {this.fields = const {}, this.network = false});
+  ApiFailure(this.code, this.message, {this.fields = const {}, this.network = false, this.requestId});
+  /// Short reference the customer can quote to support (from the server's own request id). Never contains personal data.
+  final String? requestId;
   final String code;
   final String message;
   final Map<String, String> fields;
@@ -88,12 +91,17 @@ class AuthRepository {
     try {
       final r = await call();
       final s = r.statusCode ?? 0;
-      if (s >= 200 && s < 300) return r;
+      if (s >= 200 && s < 300) {
+        if (maintenanceNotifier.value != null) maintenanceNotifier.value = null; // the bank answered normally: maintenance is over
+        return r;
+      }
       final d = r.data ?? const {};
+      if (s == 503 && d['code'] == 'maintenance') maintenanceNotifier.value = (d['message'] as String?) ?? 'Zentrix Bank is being updated. Please try again shortly.';
       throw ApiFailure(
         (d['code'] as String?) ?? (s == 401 ? 'unauthenticated' : 'error'),
         s >= 500 ? 'Something went wrong on our side. Please try again.' : (d['message'] as String?) ?? 'Request failed',
         fields: ((d['fields'] as Map?) ?? const {}).map((k, v) => MapEntry('$k', '$v')),
+        requestId: (d['requestId'] as String?)?.substring(0, ((d['requestId'] as String).length < 8) ? (d['requestId'] as String).length : 8),
       );
     } on DioException {
       // A dropped connection is NOT a business refusal - callers must not assume a write failed.
@@ -109,6 +117,8 @@ class AuthRepository {
       // Refresh ONLY when the access token expired. A 401 for a wrong PIN/password must never be replayed:
       // that would silently double-count failed attempts toward the lockout.
       if (r.statusCode == 401 && _isTokenExpiry(r.data) && await _refreshOnce()) r = await call(_auth);
+      // The session cannot be renewed: tell the app so it can sign the customer out and explain why.
+      if (r.statusCode == 401 && _isTokenExpiry(r.data)) sessionExpiredNotifier.value = true;
       return r;
     });
   }
@@ -164,6 +174,12 @@ class AuthRepository {
       (await _authed((o) => _dio.patch(path, options: o, data: body))).data ?? const {};
   Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async =>
       (await _authed((o) => _dio.put(path, options: o, data: body))).data ?? const {};
+  /// Public maintenance status. Returns the notice while maintenance is on, or null when the bank is open.
+  Future<String?> maintenanceStatus() async {
+    final r = await _send(() => _dio.get('/api/v1/system/status'));
+    return r.data?['maintenance'] == true ? (r.data?['message'] as String?) ?? 'Zentrix Bank is being updated. Please try again shortly.' : null;
+  }
+
   /// Development helper: the API answers 404 anywhere except a local development server, and this returns an empty list then.
   Future<List<DemoAccount>> demoAccounts() async {
     try {

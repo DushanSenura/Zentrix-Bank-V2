@@ -8,6 +8,9 @@ import 'widgets.dart';
 
 String errorText(Object e) => e is ApiFailure ? e.message : 'Something went wrong. Please try again.';
 
+/// The short support reference for a failed request, when the bank supplied one.
+String? errorReference(Object e) => e is ApiFailure && e.requestId != null ? 'Reference ${e.requestId}' : null;
+
 /// Standard loading / error-with-retry / data states so every screen handles them the same way.
 class AsyncView<T> extends StatelessWidget {
   const AsyncView({super.key, required this.value, required this.onRetry, required this.builder});
@@ -18,7 +21,7 @@ class AsyncView<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) => value.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(ZxSpace.lg), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(errorText(e), textAlign: TextAlign.center), TextButton(onPressed: onRetry, child: const Text('Retry'))]))),
+        error: (e, _) => Center(child: Padding(padding: const EdgeInsets.all(ZxSpace.lg), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(errorText(e), textAlign: TextAlign.center), if (errorReference(e) != null) Text(errorReference(e)!, style: const TextStyle(fontSize: 12)), TextButton(onPressed: onRetry, child: const Text('Retry'))]))),
         data: builder,
       );
 }

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/design_system/app_theme.dart';
+import '../core/network/resilience.dart';
+import '../features/authentication/data/auth_repository.dart' show authRepositoryProvider;
 import '../features/accounts/presentation/accounts_pages.dart';
 import '../features/authentication/presentation/auth_controller.dart';
 import '../features/authentication/presentation/auth_pages.dart';
@@ -131,7 +133,7 @@ class ZentrixApp extends ConsumerWidget {
         final mq = MediaQuery.of(context);
         return MediaQuery(
           data: mq.copyWith(disableAnimations: mq.disableAnimations || settings.reduceMotion),
-          child: AppLockGate(child: child ?? const SizedBox.shrink()),
+          child: MaintenanceGate(recheck: () => ref.read(authRepositoryProvider).maintenanceStatus(), child: OfflineBanner(child: AppLockGate(child: child ?? const SizedBox.shrink()))),
         );
       },
     );
