@@ -27,11 +27,44 @@ class TxnPage {
 }
 
 class TxnFilter {
-  const TxnFilter({this.accountId, this.q = '', this.direction});
+  const TxnFilter({this.accountId, this.q = '', this.direction, this.category, this.from, this.to, this.minMinor, this.maxMinor});
   final String? accountId;
   final String q;
   final String? direction; // IN | OUT
+  final String? category;
+  final DateTime? from;
+  final DateTime? to;
+  final int? minMinor;
+  final int? maxMinor;
+
+  TxnFilter copyWith({String? accountId, bool clearAccount = false, String? q, String? direction, bool clearDirection = false, String? category, bool clearCategory = false, DateTime? from, DateTime? to, bool clearDates = false, int? minMinor, int? maxMinor, bool clearAmounts = false}) => TxnFilter(
+        accountId: clearAccount ? null : (accountId ?? this.accountId), q: q ?? this.q, direction: clearDirection ? null : (direction ?? this.direction), category: clearCategory ? null : (category ?? this.category),
+        from: clearDates ? null : (from ?? this.from), to: clearDates ? null : (to ?? this.to), minMinor: clearAmounts ? null : (minMinor ?? this.minMinor), maxMinor: clearAmounts ? null : (maxMinor ?? this.maxMinor),
+      );
+
+  /// How many of the advanced filters (beyond search text, account and direction) are on.
+  int get advancedCount => (category != null ? 1 : 0) + (from != null || to != null ? 1 : 0) + (minMinor != null || maxMinor != null ? 1 : 0);
 }
+
+class TxnDetail {
+  const TxnDetail({required this.id, required this.reference, required this.description, required this.status, required this.amountMinor, required this.postedAt, required this.accountLabel, required this.feeMinor, required this.canRepeat, required this.canReport, this.category, this.counterparty, this.note, this.paymentId});
+  final String id;
+  final String reference;
+  final String description;
+  final String status;
+  final int amountMinor;
+  final DateTime postedAt;
+  final String accountLabel;
+  final int feeMinor;
+  final bool canRepeat;
+  final bool canReport;
+  final String? category;
+  final String? counterparty;
+  final String? note;
+  final String? paymentId;
+}
+
+const spendingCategories = ['Transfers', 'Electricity', 'Water', 'Telephone & mobile', 'Internet', 'Television', 'Insurance', 'Education', 'Credit cards', 'Government & rates', 'Loan repayments', 'Other'];
 
 class Dispute {
   const Dispute({required this.id, required this.reference, required this.status, required this.statusText, required this.reasonCode, required this.createdAt, this.resolution, this.paymentReference});
@@ -112,6 +145,11 @@ class SupportRepository {
       'accountId': ?f.accountId,
       if (f.q.trim().length >= 2) 'q': f.q.trim(),
       'direction': ?f.direction,
+      'category': ?f.category,
+      if (f.from != null) 'from': _day(f.from!),
+      if (f.to != null) 'to': _day(f.to!),
+      'minMinor': ?f.minMinor,
+      'maxMinor': ?f.maxMinor,
       'cursor': ?cursor,
     });
     return TxnPage([
@@ -119,6 +157,21 @@ class SupportRepository {
         TxnItem(id: t['id'] as String, reference: t['reference'] as String, description: (t['description'] as String?) ?? (t['kind'] as String), amountMinor: _i(t['amountMinor']), postedAt: _d(t['postedAt']), accountLabel: (t['accountLabel'] as String?) ?? '', paymentId: t['paymentId'] as String?),
     ], j['nextCursor'] as String?);
   }
+
+  static String _day(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  Future<TxnDetail> transactionDetail(String id) async {
+    final j = await _api.getJson('/api/v1/transactions/$id');
+    final cp = j['counterparty'] as Map<String, dynamic>?;
+    return TxnDetail(
+      id: j['id'] as String, reference: j['reference'] as String, description: (j['description'] as String?) ?? (j['kind'] as String), status: j['status'] as String, amountMinor: _i(j['amountMinor']), postedAt: _d(j['postedAt']),
+      accountLabel: (j['account'] as Map)['label'] as String, feeMinor: _i(j['feeMinor']), canRepeat: j['canRepeat'] == true, canReport: j['canReport'] == true, category: j['category'] as String?, note: j['note'] as String?, paymentId: j['paymentId'] as String?,
+      counterparty: cp == null ? null : [cp['name'], cp['bank'], cp['accountMasked']].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
+    );
+  }
+
+  /// The body of a new draft copied from an earlier payment of this customer's (the recipient is never invented).
+  Future<Map<String, dynamic>> repeatDraft(String paymentId) => _api.getJson('/api/v1/payments/$paymentId/repeat');
 
   Future<List<Dispute>> disputes() async => [
         for (final d in _list(await _api.getJson('/api/v1/disputes')))

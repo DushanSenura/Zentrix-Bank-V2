@@ -185,6 +185,7 @@ class LoansPage extends ConsumerWidget {
     final apps = ref.watch(loanApplicationsProvider);
     return ServicePage(
       title: 'Loans',
+      actions: [IconButton(tooltip: 'Loan calculator', icon: const Icon(Icons.calculate_outlined), onPressed: () => context.push('/services/loans/calculator'))],
       fab: FloatingActionButton.extended(onPressed: () => context.push('/services/loans/apply'), icon: const Icon(Icons.request_quote_outlined), label: const Text('Apply for a loan')),
       body: RefreshIndicator(
         onRefresh: () async { ref.invalidate(loansProvider); ref.invalidate(loanApplicationsProvider); },

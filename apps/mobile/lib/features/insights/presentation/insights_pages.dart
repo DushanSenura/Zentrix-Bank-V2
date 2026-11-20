@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,6 +76,8 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
               ),
             ),
           const SizedBox(height: ZxSpace.md),
+          if (s.categories.isNotEmpty) _DonutCard(s),
+          const _CashFlowCard(),
           const _TrendCard(),
           const SizedBox(height: ZxSpace.md),
           const _InsightList(),
@@ -89,6 +93,143 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
     final t = int.parse(label.substring(0, 4)) * 12 + int.parse(label.substring(5)) - 1 + by;
     return '${t ~/ 12}-${((t % 12) + 1).toString().padLeft(2, '0')}';
   }
+}
+
+const _palette = [Color(0xFF155EEF), Color(0xFF39C7F4), Color(0xFF13A77A), Color(0xFFE5A138), Color(0xFFDF4B5B), Color(0xFF8B5CF6), Color(0xFF64748B)];
+
+/// Spending split by category as a donut. The legend repeats every figure as text, so the chart is never the only carrier of information.
+class _DonutCard extends StatelessWidget {
+  const _DonutCard(this.s);
+  final MonthSummary s;
+  @override
+  Widget build(BuildContext context) {
+    final shown = s.categories.take(6).toList();
+    final restMinor = s.categories.skip(6).fold<int>(0, (a, c) => a + c.spentMinor);
+    final slices = [for (final c in shown) (c.category, c.spentMinor), if (restMinor > 0) ('Other categories', restMinor)];
+    final total = slices.fold<int>(0, (a, e) => a + e.$2);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: ZxSpace.md),
+      child: GlassCard(blur: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Spending split', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: ZxSpace.sm),
+        Row(children: [
+          Semantics(
+            label: 'Donut chart: ${slices.map((e) => '${e.$1} ${total == 0 ? 0 : (e.$2 * 100 / total).round()} percent').join(', ')}',
+            child: ExcludeSemantics(child: SizedBox(width: 120, height: 120, child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: ZxMotion.scaled(context, ZxMotion.large),
+              curve: ZxMotion.curve,
+              builder: (_, v, _) => CustomPaint(painter: _DonutPainter([for (final e in slices) e.$2.toDouble()], v)),
+            ))),
+          ),
+          const SizedBox(width: ZxSpace.md),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (var i = 0; i < slices.length; i++)
+              Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(children: [
+                Container(width: 10, height: 10, decoration: BoxDecoration(color: _palette[i % _palette.length], shape: BoxShape.circle)),
+                const SizedBox(width: ZxSpace.sm),
+                Expanded(child: Text(slices[i].$1, overflow: TextOverflow.ellipsis)),
+                Text('${total == 0 ? 0 : (slices[i].$2 * 100 / total).round()}%', style: const TextStyle(fontWeight: FontWeight.w600)),
+              ])),
+          ])),
+        ]),
+      ])),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  _DonutPainter(this.values, this.progress);
+  final List<double> values;
+  final double progress;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold<double>(0, (a, b) => a + b);
+    if (total <= 0) return;
+    final rect = Offset.zero & size;
+    final stroke = size.width * 0.2;
+    var start = -math.pi / 2;
+    for (var i = 0; i < values.length; i++) {
+      final sweep = values[i] / total * 2 * math.pi * progress;
+      canvas.drawArc(rect.deflate(stroke / 2), start, math.max(sweep - 0.02, 0), false, Paint()..style = PaintingStyle.stroke..strokeWidth = stroke..color = _palette[i % _palette.length]);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DonutPainter o) => o.progress != progress || o.values != values;
+}
+
+/// Money in and spending per month, with the net result as a line.
+class _CashFlowCard extends ConsumerWidget {
+  const _CashFlowCard();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ref.watch(trendProvider).when(
+        loading: () => const SizedBox.shrink(),
+        error: (_, _) => const SizedBox.shrink(),
+        data: (items) {
+          if (items.every((p) => p.spentMinor == 0 && p.moneyInMinor == 0)) return const SizedBox.shrink();
+          final cs = Theme.of(context).colorScheme;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: ZxSpace.md),
+            child: GlassCard(blur: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Cash flow', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: ZxSpace.xs),
+              Wrap(spacing: ZxSpace.md, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 10, height: 10, color: const Color(0xFF13A77A)), const SizedBox(width: 4), const Text('Money in', style: TextStyle(fontSize: 12))]),
+                Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 10, height: 10, color: const Color(0xFFDF4B5B)), const SizedBox(width: 4), const Text('Spent', style: TextStyle(fontSize: 12))]),
+                Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 14, height: 3, color: cs.primary), const SizedBox(width: 4), const Text('Net', style: TextStyle(fontSize: 12))]),
+              ]),
+              const SizedBox(height: ZxSpace.sm),
+              Semantics(
+                label: 'Cash flow chart. ${items.map((p) => '${_monthName(p.month)}: in ${formatMinor(p.moneyInMinor)}, spent ${formatMinor(p.spentMinor)}').join('. ')}',
+                child: ExcludeSemantics(child: SizedBox(height: 160, width: double.infinity, child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: ZxMotion.scaled(context, ZxMotion.large),
+                  curve: ZxMotion.curve,
+                  builder: (_, v, _) => CustomPaint(painter: _CashFlowPainter(items, v, cs.primary, cs.onSurface.withValues(alpha: 0.2))),
+                ))),
+              ),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [for (final p in items) Text(_months[int.parse(p.month.substring(5)) - 1], style: const TextStyle(fontSize: 11))]),
+            ])),
+          );
+        },
+      );
+}
+
+class _CashFlowPainter extends CustomPainter {
+  _CashFlowPainter(this.items, this.progress, this.lineColor, this.grid);
+  final List<TrendPoint> items;
+  final double progress;
+  final Color lineColor;
+  final Color grid;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = items.length;
+    if (n == 0) return;
+    final peak = items.fold<int>(1, (m, p) => math.max(m, math.max(p.moneyInMinor, p.spentMinor)));
+    final lowest = items.fold<int>(0, (m, p) => math.min(m, p.moneyInMinor - p.spentMinor));
+    final range = (peak - lowest).toDouble();
+    double y(num v) => size.height - ((v - lowest) / range) * size.height;
+    canvas.drawLine(Offset(0, y(0)), Offset(size.width, y(0)), Paint()..color = grid..strokeWidth = 1);
+    final slot = size.width / n;
+    final bar = slot * 0.28;
+    final inPaint = Paint()..color = const Color(0xFF13A77A);
+    final outPaint = Paint()..color = const Color(0xFFDF4B5B);
+    final path = Path();
+    final zero = y(0);
+    for (var i = 0; i < n; i++) {
+      final cx = slot * i + slot / 2;
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(cx - bar - 1, zero - (zero - y(items[i].moneyInMinor)) * progress, cx - 1, zero), const Radius.circular(3)), inPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTRB(cx + 1, zero - (zero - y(items[i].spentMinor)) * progress, cx + bar + 1, zero), const Radius.circular(3)), outPaint);
+      final ny = zero - (zero - y(items[i].moneyInMinor - items[i].spentMinor)) * progress;
+      if (i == 0) { path.moveTo(cx, ny); } else { path.lineTo(cx, ny); }
+    }
+    canvas.drawPath(path, Paint()..color = lineColor..style = PaintingStyle.stroke..strokeWidth = 2.5..strokeJoin = StrokeJoin.round);
+  }
+
+  @override
+  bool shouldRepaint(_CashFlowPainter o) => o.progress != progress || o.items != items;
 }
 
 class _Row extends StatelessWidget {

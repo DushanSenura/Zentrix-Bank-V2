@@ -54,7 +54,7 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('Mar 2026'), findsOneWidget);
       expect(find.text('LKR 7,000.00'), findsOneWidget); // money in
-      expect(find.text('Transfers'), findsOneWidget);
+      expect(find.text('Transfers'), findsNWidgets(2)); // the category list and the donut legend
       expect(find.text('LKR 1,000.00'), findsOneWidget);
       expect(find.text('+25% vs last month'), findsOneWidget);
       expect(find.text('No spending last month to compare with.'), findsOneWidget); // no invented percentage

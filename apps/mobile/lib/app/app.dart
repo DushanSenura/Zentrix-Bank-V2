@@ -11,11 +11,13 @@ import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
 import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
+import '../features/search/search_page.dart';
 import '../features/profile/profile_pages.dart';
 import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
 import '../features/services/presentation/cards_pages.dart';
+import '../features/services/presentation/loan_calculator_page.dart';
 import '../features/support/presentation/support_pages.dart';
 import '../features/services/presentation/deposits_loans_pages.dart';
 import '../features/services/presentation/savings_pages.dart';
@@ -59,6 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: 'deposits', builder: (_, _) => const DepositsPage(), routes: [GoRoute(path: 'open', builder: (_, _) => const OpenDepositPage())]),
         GoRoute(path: 'loans', builder: (_, _) => const LoansPage(), routes: [
           GoRoute(path: 'apply', builder: (_, _) => const LoanApplyPage()),
+          GoRoute(path: 'calculator', builder: (_, _) => const LoanCalculatorPage()),
           GoRoute(path: ':id', builder: (_, st) => LoanDetailPage(id: st.pathParameters['id']!)),
         ]),
         GoRoute(path: 'savings', builder: (_, _) => const SavingsPage()),
@@ -77,6 +80,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/assistant', builder: (_, _) => const AssistantPage()),
       GoRoute(path: '/profile', builder: (_, _) => const ProfilePage(), routes: [GoRoute(path: 'edit', builder: (_, _) => const EditProfilePage())]),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+      GoRoute(path: '/transactions/:id', builder: (_, st) => TransactionDetailsPage(id: st.pathParameters['id']!)),
+      GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
       GoRoute(path: '/history', builder: (_, _) => const HistoryPage()),
       GoRoute(path: '/statements', builder: (_, _) => const StatementsPage()),
       GoRoute(path: '/support', builder: (_, _) => const SupportHubPage(), routes: [

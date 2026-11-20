@@ -5,10 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design_system/async_view.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../../core/design_system/widgets.dart';
-import '../../../core/utils/money.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../data/file_sharer.dart';
 import '../data/support_repository.dart';
+
+export 'history_pages.dart' show HistoryPage, TransactionDetailsPage;
 
 String _date(DateTime d) {
   final l = d.toLocal();
@@ -16,102 +17,6 @@ String _date(DateTime d) {
 }
 
 void _toast(BuildContext c, String m) => ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(m)));
-
-// ═════════════════════════ transaction history ═════════════════════════
-class HistoryPage extends ConsumerStatefulWidget {
-  const HistoryPage({super.key});
-  @override
-  ConsumerState<HistoryPage> createState() => _HistoryPageState();
-}
-
-class _HistoryPageState extends ConsumerState<HistoryPage> {
-  final _search = TextEditingController();
-  String? _account;
-  String? _direction;
-  final _items = <TxnItem>[];
-  String? _cursor;
-  bool _loading = true;
-  bool _more = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-  }
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load({bool append = false}) async {
-    setState(() { if (append) { _more = true; } else { _loading = true; _items.clear(); _cursor = null; } _error = null; });
-    try {
-      final page = await ref.read(supportRepositoryProvider).transactions(TxnFilter(accountId: _account, q: _search.text, direction: _direction), cursor: append ? _cursor : null);
-      if (!mounted) return;
-      setState(() { _items.addAll(page.items); _cursor = page.nextCursor; });
-    } catch (e) {
-      if (mounted) setState(() => _error = errorText(e));
-    } finally {
-      if (mounted) setState(() { _loading = false; _more = false; });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final accounts = ref.watch(accountListProvider).asData?.value.items ?? const <Account>[];
-    return ServicePage(
-      title: 'Transaction history',
-      actions: [IconButton(tooltip: 'Statements', icon: const Icon(Icons.description_outlined), onPressed: () => context.push('/statements'))],
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(ZxSpace.md, ZxSpace.md, ZxSpace.md, 0),
-          child: Column(children: [
-            TextField(controller: _search, textInputAction: TextInputAction.search, decoration: const InputDecoration(labelText: 'Search description or reference', prefixIcon: Icon(Icons.search)), onSubmitted: (_) => _load()),
-            const SizedBox(height: ZxSpace.sm),
-            Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String?>(
-                  initialValue: _account, isExpanded: true, decoration: const InputDecoration(labelText: 'Account'),
-                  items: [const DropdownMenuItem(value: null, child: Text('All accounts')), for (final a in accounts) DropdownMenuItem(value: a.id, child: Text(a.title, overflow: TextOverflow.ellipsis))],
-                  onChanged: (v) { setState(() => _account = v); _load(); },
-                ),
-              ),
-            ]),
-            const SizedBox(height: ZxSpace.sm),
-            Wrap(spacing: ZxSpace.sm, children: [
-              for (final (label, value) in const [('All', null), ('Money in', 'IN'), ('Money out', 'OUT')])
-                ChoiceChip(label: Text(label), selected: _direction == value, onSelected: (_) { setState(() => _direction = value); _load(); }),
-            ]),
-          ]),
-        ),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!), TextButton(onPressed: _load, child: const Text('Try again'))]))
-                  : _items.isEmpty
-                      ? const Center(child: Text('No transactions match.'))
-                      : ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
-                          for (final t in _items)
-                            Semantics(
-                              label: '${t.description}, ${formatMinor(t.amountMinor, signed: true)}, ${_date(t.postedAt)}',
-                              child: ListTile(
-                                title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                subtitle: Text('${_date(t.postedAt)} · ${t.accountLabel}'),
-                                trailing: Text(formatMinor(t.amountMinor, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
-                                onTap: t.paymentId == null ? null : () => context.push('/receipts/${t.paymentId}'),
-                              ),
-                            ),
-                          if (_cursor != null) Padding(padding: const EdgeInsets.all(ZxSpace.md), child: OutlinedButton(onPressed: _more ? null : () => _load(append: true), child: Text(_more ? 'Loading…' : 'Load more'))),
-                        ]),
-        ),
-      ]),
-    );
-  }
-}
 
 // ═════════════════════════ statements ═════════════════════════
 class StatementsPage extends ConsumerStatefulWidget {

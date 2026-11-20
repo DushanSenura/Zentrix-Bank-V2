@@ -60,6 +60,7 @@ class AccountsHome extends ConsumerWidget {
                   final unread = ref.watch(unreadCountProvider).asData?.value ?? 0;
                   return IconButton(tooltip: unread > 0 ? 'Notifications, $unread unread' : 'Notifications', icon: Badge(isLabelVisible: unread > 0, label: Text('$unread'), child: const Icon(Icons.notifications_none)), onPressed: () async { await context.push('/notifications'); ref.invalidate(unreadCountProvider); });
                 }),
+                IconButton(tooltip: 'Search', icon: const Icon(Icons.search), onPressed: () => context.push('/search')),
                 IconButton(tooltip: 'Profile', icon: const Icon(Icons.account_circle_outlined), onPressed: () => context.push('/profile')),
                 IconButton(tooltip: 'Security & settings', icon: const Icon(Icons.shield_outlined), onPressed: () => context.push('/security')),
               ]),
