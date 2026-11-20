@@ -6,7 +6,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { loadEnv } from './config/env';
 import { encrypt } from './security/crypto';
 import { hashSecret } from './security/password';
@@ -90,6 +90,14 @@ async function main() {
 
   await ensureUser({ username: 'admin.demo', email: 'admin.demo@zentrix.test', type: 'STAFF', fullName: 'Demo Administrator', status: 'ACTIVE', role: 'SUPER_ADMIN' });
   await ensureUser({ username: 'kyc.officer.demo', email: 'kyc.demo@zentrix.test', type: 'STAFF', fullName: 'Demo Account Officer', status: 'ACTIVE', role: 'ACCOUNT_OFFICER' });
+  // One fictional staff member per remaining role, so every role's view of the portal can be tried.
+  const demoStaff: [string, string, string][] = [
+    ['bank.admin.demo', 'BANK_ADMIN', 'Demo Bank Administrator'], ['branch.manager.demo', 'BRANCH_MANAGER', 'Demo Branch Manager'],
+    ['operations.demo', 'OPERATIONS_OFFICER', 'Demo Operations Officer'], ['support.demo', 'CUSTOMER_SERVICE', 'Demo Customer Service Officer'],
+    ['loan.officer.demo', 'LOAN_OFFICER', 'Demo Loan Officer'], ['card.officer.demo', 'CARD_OFFICER', 'Demo Card Officer'],
+    ['compliance.demo', 'COMPLIANCE_OFFICER', 'Demo Compliance Officer'], ['auditor.demo', 'AUDITOR', 'Demo Auditor'],
+  ];
+  for (const [username, role, fullName] of demoStaff) await ensureUser({ username, email: `${username}@zentrix.test`, type: 'STAFF', fullName, status: 'ACTIVE', role });
   await ensureUser({ username: 'amaya.demo', email: 'amaya.demo@zentrix.test', type: 'CUSTOMER', fullName: 'Amaya Perera (fictional)', status: 'ACTIVE', kyc: 'APPROVED', customerNumber: 'ZB90000001' });
   await ensureUser({ username: 'nuwan.demo', email: 'nuwan.demo@zentrix.test', type: 'CUSTOMER', fullName: 'Nuwan Silva (fictional)', status: 'PENDING_VERIFICATION', kyc: 'SUBMITTED', customerNumber: 'ZB90000002' });
 
@@ -115,7 +123,10 @@ async function main() {
   }
 
   if (Object.keys(creds).length > 1) {
-    writeFileSync('../../.local-dev-credentials.json', JSON.stringify(creds, null, 2));
+    // Merge with what is already there: users that already existed keep their credentials, and re-running must not erase them.
+    const file = '../../.local-dev-credentials.json';
+    const previous = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>) : {};
+    writeFileSync(file, JSON.stringify({ ...previous, ...creds }, null, 2), { mode: 0o600 });
     console.log('Credentials written to .local-dev-credentials.json (git-ignored).');
   }
   await prisma.$disconnect();
