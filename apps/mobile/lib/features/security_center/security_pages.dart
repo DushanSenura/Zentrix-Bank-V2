@@ -9,10 +9,15 @@ import '../../core/security/biometric_service.dart';
 import '../authentication/data/auth_repository.dart';
 import '../authentication/presentation/auth_controller.dart';
 import '../authentication/presentation/auth_pages.dart';
+import '../payments/presentation/payment_flow.dart' show askPin;
 import '../settings/settings_controller.dart';
 
 final _sessionsProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).sessions(), retry: noRetry);
 final _historyProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).loginHistory(), retry: noRetry);
+final _alertsProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final d = await ref.watch(authRepositoryProvider).getJson('/api/v1/security/alerts');
+  return (d['items'] as List).cast<Map<String, dynamic>>();
+}, retry: noRetry);
 final _devicesProvider = FutureProvider.autoDispose((ref) => ref.watch(authRepositoryProvider).devices(), retry: noRetry);
 
 String _when(DateTime t) {
@@ -77,6 +82,16 @@ class SecurityCenterPage extends ConsumerWidget {
               tile(Icons.speed, 'Transfer limits', '/security/limits'),
               tile(Icons.tune, 'App lock & appearance', '/security/preferences'),
             ]))),
+            const SizedBox(height: ZxSpace.md),
+            Text('Recent security alerts', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: ZxSpace.sm),
+            ref.watch(_alertsProvider).when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => const Text('Alerts could not be loaded.'),
+              data: (items) => items.isEmpty
+                  ? const Text('No security alerts. New devices, PIN or password changes and large transfers will appear here.')
+                  : Column(children: [for (final a in items.take(8)) Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: GlassCard(blur: false, padding: const EdgeInsets.all(ZxSpace.md), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(a['title'] as String, style: const TextStyle(fontWeight: FontWeight.w600)), const SizedBox(height: 2), Text(a['body'] as String), const SizedBox(height: 2), Text(_when(DateTime.parse(a['at'] as String)), style: Theme.of(context).textTheme.bodySmall)])))]),
+            ),
           ]),
         ),
       ),
@@ -148,6 +163,7 @@ class _ChangePinPageState extends ConsumerState<ChangePinPage> with FormRunner {
           run(() async {
             try {
               await ref.read(authRepositoryProvider).changePin(_cur.text, _next.text);
+              await ref.read(settingsProvider.notifier).setBiometricPay(false); // the stored PIN is now out of date
               if (mounted) setState(() => _done = true);
             } on ApiFailure catch (e) {
               if (e.code == 'unauthenticated') await ref.read(authControllerProvider.notifier).logout(); // PIN lockout ended the session
@@ -245,6 +261,27 @@ class PreferencesPage extends ConsumerWidget {
                   if (!v) return n.setBiometric(false);
                   if (!await bio.available()) { messenger.showSnackBar(const SnackBar(content: Text('No biometrics are set up on this phone.'))); return; }
                   if (await bio.authenticate('Confirm to turn on biometric unlock')) await n.setBiometric(true);
+                },
+              ),
+              SwitchListTile(
+                title: const Text('Approve payments with biometrics'),
+                subtitle: const Text('Skips typing your PIN. This keeps your PIN in your phone’s secure storage; the bank still checks it on every payment. Turned off when you change your PIN or sign out.'),
+                value: s.biometricPay,
+                onChanged: (v) async {
+                  final bio = ref.read(biometricServiceProvider);
+                  final messenger = ScaffoldMessenger.of(context);
+                  if (!v) return n.setBiometricPay(false);
+                  if (!await bio.available()) { messenger.showSnackBar(const SnackBar(content: Text('No biometrics are set up on this phone.'))); return; }
+                  if (!context.mounted) return;
+                  final pin = await askPin(context);
+                  if (pin == null) return;
+                  try {
+                    await ref.read(authRepositoryProvider).verifyPin(pin);
+                  } on ApiFailure catch (e) {
+                    messenger.showSnackBar(SnackBar(content: Text(e.message)));
+                    return;
+                  }
+                  if (await bio.authenticate('Confirm to approve payments with biometrics')) await n.setBiometricPay(true, pin: pin);
                 },
               ),
               ListTile(

@@ -17,6 +17,36 @@ final cardDetailProvider = FutureProvider.autoDispose.family<BankCard, String>((
 IconData _kindIcon(String k) => switch (k) { 'VIRTUAL' => Icons.credit_card_outlined, 'CREDIT' => Icons.credit_score, _ => Icons.payment };
 String _kindLabel(String k) => switch (k) { 'VIRTUAL' => 'Virtual card', 'CREDIT' => 'Credit card', _ => 'Debit card' };
 
+/// Cards side by side: swipe sideways when there is more than one. A single card fills the width.
+class _CardCarousel extends StatefulWidget {
+  const _CardCarousel({required this.cards, required this.itemBuilder});
+  final List<BankCard> cards;
+  final Widget Function(BankCard) itemBuilder;
+  @override
+  State<_CardCarousel> createState() => _CardCarouselState();
+}
+
+class _CardCarouselState extends State<_CardCarousel> {
+  final _controller = PageController(viewportFraction: 0.94);
+  int _page = 0;
+  @override
+  void dispose() { _controller.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cards.length < 2) return Column(children: [for (final c in widget.cards) widget.itemBuilder(c)]);
+    return Column(children: [
+      SizedBox(
+        height: 124,
+        child: PageView.builder(controller: _controller, padEnds: false, itemCount: widget.cards.length, onPageChanged: (i) => setState(() => _page = i), itemBuilder: (_, i) => widget.itemBuilder(widget.cards[i])),
+      ),
+      Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: Semantics(label: 'Card ${_page + 1} of ${widget.cards.length}, swipe for more', child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        for (var i = 0; i < widget.cards.length; i++) Container(margin: const EdgeInsets.all(3), width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: i == _page ? context.zx.primary : context.zx.textMuted.withValues(alpha: 0.4))),
+      ]))),
+    ]);
+  }
+}
+
 class CardsPage extends ConsumerWidget {
   const CardsPage({super.key});
   @override
@@ -32,7 +62,7 @@ class CardsPage extends ConsumerWidget {
           onRefresh: () async => ref.invalidate(cardsProvider),
           child: ListView(padding: const EdgeInsets.fromLTRB(ZxSpace.md, ZxSpace.md, ZxSpace.md, 96), physics: const AlwaysScrollableScrollPhysics(), children: [
             if (cards.isEmpty) const Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Text('You have no cards yet. Request one and the bank will review it.', textAlign: TextAlign.center)),
-            for (final c in cards)
+            _CardCarousel(cards: cards, itemBuilder: (c) =>
               Padding(
                 padding: const EdgeInsets.only(bottom: ZxSpace.sm),
                 child: Semantics(
@@ -53,7 +83,7 @@ class CardsPage extends ConsumerWidget {
                     ])),
                   ),
                 ),
-              ),
+              )),
           ]),
         ),
       ),
@@ -173,6 +203,18 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
     await _do(() => ref.read(servicesRepositoryProvider).activateCard(c.id, pin, chosen));
   }
 
+  Future<void> _blockForGood(BankCard c) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Block this card permanently?'),
+      content: const Text('The card is blocked for good and no replacement is ordered. This cannot be undone. If it was lost or stolen, use "Report lost or stolen" instead so a replacement is requested.'),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Block permanently'))],
+    ));
+    if (ok != true || !mounted) return;
+    final pin = await askPin(context);
+    if (pin == null) return;
+    await _do(() => ref.read(servicesRepositoryProvider).blockPermanently(c.id, pin));
+  }
+
   Future<void> _lost(BankCard c) async {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Report card lost or stolen?'),
@@ -231,6 +273,7 @@ class _CardDetailPageState extends ConsumerState<CardDetailPage> {
               ])),
               const SizedBox(height: ZxSpace.md),
               TextButton.icon(onPressed: () => _lost(c), icon: Icon(Icons.report_gmailerrorred, color: context.zx.error), label: Text('Report lost or stolen', style: TextStyle(color: context.zx.error))),
+              TextButton.icon(onPressed: () => _blockForGood(c), icon: Icon(Icons.block, color: context.zx.error), label: Text('Block card permanently', style: TextStyle(color: context.zx.error))),
             ],
             const _Note('Limits are stored with the bank and shown here. In this simulation no card purchases are made, so limits are not yet enforced at a merchant.'),
           ]);

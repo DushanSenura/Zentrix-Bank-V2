@@ -143,3 +143,18 @@ NOT done / limits:
 * FX rates are fictional and set by staff; the spread is a setting (default 1.5%). Exchange is between a customer's own accounts only, with the PIN; there is no daily FX limit beyond the per-transfer limit.
 * Two-step recovery: if a customer loses both phone and codes there is no staff-assisted reset yet.
 
+
+## Phase 12 — V1 checklist round: DONE with listed gaps (verified 2026-11-20)
+Request: a 22-section V1 feature checklist ("check and implement them"). I audited each section against V2 and built what was missing; the table is in `docs/v1-migration/parity-status.md` under "Checklist round".
+
+Verified: API 227 tests (real PostgreSQL), worker 5, admin 50, Flutter 210 (including light/dark/2x-text accessibility checks on the new screens); typecheck, admin build, `flutter analyze` and `pnpm audit` clean. Three migrations: reset-attempt counter, auto-save / funded deposit / payment category columns, Home Loan product.
+
+Built: 6-digit password-reset code (5 guesses, dev-only on-screen code), five-step registration, month overview on home, opening deposit from another account (PIN, ledger move on approval), per-account monthly in/out, biometric payment approval (opt-in), save recipient after paying, pending/failed and type filters, scheduled-payment history, card carousel and permanent block, Home Loan, savings target date and monthly auto-save job, eight spending categories with suggested budgets and a savings rate, dispute transaction picker and "goods or services not received", Offers and Bank notices categories with staff announcements, new security alerts (and a recent-alerts list), glass navigation, page transitions, PIN shake, refresh on reconnect.
+
+Defects found while building and fixed: the job-tick response keys test pinned the old shape; history hid the pending/failed section when there were no transactions; the savings goal buttons overflowed on a narrow screen (Row to Wrap); the PIN sheet opened while the submit button showed a never-ending spinner (PIN is now asked first).
+
+NOT done / limits:
+* **Password-reset codes are not delivered anywhere** (no email/SMS channel exists). Locally the code is shown on screen; staging and production customers cannot complete a reset until a delivery channel is added.
+* **Biometric payment approval keeps the PIN in the phone's secure storage** (opt-in). It is not itself locked behind the fingerprint; the bank still verifies it on every payment.
+* Sample QR codes not built. Glass sheets are translucent, not blurred. The staff account-approval screen does not yet show "paid from the customer's account" (API returns it).
+* Nothing was run on a device or emulator; new screens are covered by widget tests with fakes. The auto-save job was tested by calling the service with a future clock, not by waiting a month.

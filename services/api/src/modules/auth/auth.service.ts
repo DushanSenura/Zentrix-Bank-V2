@@ -174,28 +174,36 @@ export class AuthService {
     const id = identifier.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({ where: { OR: [{ username: id }, { email: id }], type: 'CUSTOMER', status: { not: 'CLOSED' } } });
     if (!user) return;
-    const token = randomToken();
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await this.prisma.$transaction(async (tx) => {
       await tx.authenticationChallenge.updateMany({ where: { userId: user.id, purpose: 'PASSWORD_RESET', consumedAt: null }, data: { consumedAt: new Date() } });
       await tx.authenticationChallenge.create({
-        data: { userId: user.id, purpose: 'PASSWORD_RESET', tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000) },
+        data: { userId: user.id, purpose: 'PASSWORD_RESET', tokenHash: sha256(`${user.id}:${code}`), expiresAt: new Date(Date.now() + RESET_TTL_MINUTES * 60_000) },
       });
       // Delivered by the worker (email/SMS provider arrives in Phase 8). The raw token is only placed in the
       // outbox in development so local testers can complete the flow; it is never logged.
       await tx.outboxEvent.create({
         data: {
           topic: 'auth.password_reset_requested',
-          payload: { userId: user.id, ...(this.env.APP_ENV === 'development' ? { devToken: token } : {}) },
+          payload: { userId: user.id, ...(this.env.APP_ENV === 'development' ? { devCode: code } : {}) },
         },
       });
     });
     await this.audit.securityEvent('PASSWORD_RESET_REQUESTED', user.id, undefined, 'INFO');
   }
 
-  async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
-    const ch = await this.prisma.authenticationChallenge.findUnique({ where: { tokenHash: sha256(token) }, include: { user: { include: { customer: true } } } });
+  /** The 6-digit code is short, so it is tied to the account and limited to 5 wrong guesses. */
+  async confirmPasswordReset(identifier: string, code: string, newPassword: string): Promise<void> {
+    const id = identifier.trim().toLowerCase();
     const bad = this.badToken();
-    if (!ch || ch.purpose !== 'PASSWORD_RESET' || ch.consumedAt || ch.expiresAt < new Date()) throw bad;
+    const user = await this.prisma.user.findFirst({ where: { OR: [{ username: id }, { email: id }], type: 'CUSTOMER', status: { not: 'CLOSED' } } });
+    if (!user) throw bad;
+    const ch = await this.prisma.authenticationChallenge.findFirst({ where: { userId: user.id, purpose: 'PASSWORD_RESET', consumedAt: null, expiresAt: { gt: new Date() } }, orderBy: { createdAt: 'desc' }, include: { user: { include: { customer: true } } } });
+    if (!ch || ch.attempts >= 5) throw bad;
+    if (!safeEqualHex(sha256(`${user.id}:${code}`), ch.tokenHash)) {
+      await this.prisma.authenticationChallenge.update({ where: { id: ch.id }, data: { attempts: { increment: 1 } } });
+      throw bad;
+    }
     const problem = passwordProblem(newPassword, [ch.user.username, ...(ch.user.customer?.fullName.split(/\s+/) ?? [])]);
     if (problem) this.bad(problem);
     const passwordHash = await hashSecret(newPassword);
@@ -210,6 +218,6 @@ export class AuthService {
   }
 
   private badToken() {
-    return new UnauthorizedException({ code: 'invalid_reset_token', message: 'This reset link is invalid or has expired' });
+    return new UnauthorizedException({ code: 'invalid_reset_token', message: 'That code is wrong or has expired. Request a new one.' });
   }
 }

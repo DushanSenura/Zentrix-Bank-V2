@@ -36,11 +36,16 @@ final onlineProvider = StreamProvider<bool>((ref) async* {
 
 /// A thin banner shown above the app while the phone is offline.
 class OfflineBanner extends ConsumerWidget {
-  const OfflineBanner({super.key, required this.child});
+  const OfflineBanner({super.key, required this.child, this.onReconnect});
   final Widget child;
+  /// Called once each time the phone comes back online, so screens can refresh what they showed before the drop.
+  final void Function()? onReconnect;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AsyncValue<bool>>(onlineProvider, (prev, next) {
+      if (prev?.asData?.value == false && next.asData?.value == true) onReconnect?.call();
+    });
     final online = ref.watch(onlineProvider).asData?.value ?? true;
     return Column(children: [
       if (!online)

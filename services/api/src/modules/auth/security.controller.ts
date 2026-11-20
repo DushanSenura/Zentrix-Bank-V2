@@ -37,12 +37,14 @@ export class SecurityController {
     const r = await this.prisma.session.updateMany({ where: { id, userId: u.id, revokedAt: null }, data: { revokedAt: new Date() } });
     if (r.count !== 1) throw new NotFoundException({ code: 'not_found', message: 'Session not found' });
     await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.session_revoked', subjectType: 'Session', subjectId: id });
+    await queueNotifications(this.prisma, 'security.session_revoked', [{ userId: u.id, category: 'SECURITY', title: 'Device signed out', body: 'One of your signed-in devices was signed out from the Security centre.' }]);
   }
 
   @Post('sessions/revoke-others') @HttpCode(204)
   async revokeOthers(@CurrentUser() u: AuthUser) {
     await this.prisma.session.updateMany({ where: { userId: u.id, revokedAt: null, id: { not: u.sessionId } }, data: { revokedAt: new Date() } });
     await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.other_sessions_revoked' });
+    await queueNotifications(this.prisma, 'security.session_revoked', [{ userId: u.id, category: 'SECURITY', title: 'Other devices signed out', body: 'All your other signed-in devices were signed out.' }]);
   }
 
   @Get('login-history')
@@ -65,7 +67,7 @@ export class SecurityController {
       await tx.user.update({ where: { id: u.id }, data: { passwordHash: await hashSecret(b.next) } });
       await tx.session.updateMany({ where: { userId: u.id, revokedAt: null, id: { not: u.sessionId } }, data: { revokedAt: new Date() } });
       await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.password_changed' }, tx);
-      await tx.outboxEvent.create({ data: { topic: 'security.password_changed', payload: { userId: u.id } } });
+      await queueNotifications(tx, 'security.password_changed', [{ userId: u.id, category: 'SECURITY', title: 'Password changed', body: 'Your password was changed. If this was not you, contact the bank immediately.' }]);
     });
   }
 
@@ -82,6 +84,14 @@ export class SecurityController {
     if (problem) throw new BadRequestException({ code: 'weak_pin', message: problem, fields: { newPin: problem } });
     await this.prisma.user.update({ where: { id: u.id }, data: { pinHash: await hashSecret(b.newPin), pinSetAt: new Date() } });
     await this.audit.record({ actorId: u.id, actorType: 'CUSTOMER', action: 'security.pin_changed' });
+    await queueNotifications(this.prisma, 'security.pin_changed', [{ userId: u.id, category: 'SECURITY', title: 'PIN changed', body: 'Your app PIN was changed. If this was not you, change your password and contact the bank.' }]);
+  }
+
+  /** The latest security notices for this customer (new devices, PIN and password changes, sign-outs, large transfers). */
+  @Get('alerts')
+  async alerts(@CurrentUser() u: AuthUser) {
+    const rows = await this.prisma.notification.findMany({ where: { userId: u.id, category: 'SECURITY' }, orderBy: { createdAt: 'desc' }, take: 20 });
+    return { items: rows.map((n) => ({ id: n.id, title: n.title, body: n.body, at: n.createdAt })) };
   }
 
   // ───────── trusted devices ("remember this device") ─────────

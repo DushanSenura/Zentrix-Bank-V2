@@ -16,6 +16,7 @@ Map<String, dynamic>? base(String p) {
   if (p == '/api/v1/notifications') return {'unread': 0, 'items': []};
   if (p == '/api/v1/me/preferences') return {'defaultAccountId': null, 'notifications': {}, 'alwaysOn': ['SECURITY']};
   if (p == '/api/v1/transactions') return {'items': [], 'nextCursor': null}; // the home screen's recent-transactions list
+  if (p == '/api/v1/analytics/summary') return {}; // the home screen's month overview (unparseable on purpose: it just stays hidden)
   return null;
 }
 
@@ -41,9 +42,11 @@ void main() {
       await open(t, api, 'Cards');
       expect(find.text('Active'), findsOneWidget);
       expect(find.text('Awaiting bank approval'), findsOneWidget);
-      expect(find.text('Ready to collect'), findsOneWidget);
-      expect(find.text('•••• •••• •••• 4821'), findsNWidgets(2));
       expect(find.text('Number issued after approval'), findsOneWidget);
+      await t.drag(find.byType(PageView), const Offset(-600, 0)); // cards sit side by side: swipe to the next ones
+      await t.pumpAndSettle();
+      expect(find.text('Ready to collect'), findsOneWidget);
+      expect(find.text('•••• •••• •••• 4821'), findsWidgets);
     });
 
     testWidgets('freeze sends the request; tightening a limit needs no PIN but raising it does', (t) async {

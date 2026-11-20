@@ -26,7 +26,8 @@ String _err(Object e) => e is ApiFailure ? e.message : 'Something went wrong. Pl
 
 /// Navigation arguments for the transfer form.
 class TransferArgs {
-  const TransferArgs({this.beneficiaryId, this.qrPayload});
+  const TransferArgs({this.beneficiaryId, this.qrPayload, this.sourceAccountId});
+  final String? sourceAccountId; // "transfer from this account"
   final String? beneficiaryId;
   final String? qrPayload;
 }
@@ -71,6 +72,7 @@ class _TransferPageState extends ConsumerState<TransferPage> {
   final _number = TextEditingController(), _holder = TextEditingController(), _amount = TextEditingController(), _note = TextEditingController();
   DateTime? _date;
   String? _repeat;
+  String? _category;
   String? _problem;
 
   @override
@@ -104,7 +106,7 @@ class _TransferPageState extends ConsumerState<TransferPage> {
     }
     if (_repeat != null && _date == null) { setState(() => _problem = 'Choose a start date for a repeating payment.'); return; }
     setState(() => _problem = null);
-    context.push('/payments/review', extra: DraftRequest(sourceAccountId: _source!, destination: dest, amountMinor: minor, note: _note.text.trim(), scheduledFor: _date, frequency: _repeat));
+    context.push('/payments/review', extra: DraftRequest(sourceAccountId: _source!, destination: dest, amountMinor: minor, note: _note.text.trim(), category: _category, scheduledFor: _date, frequency: _repeat));
   }
 
   @override
@@ -121,7 +123,7 @@ class _TransferPageState extends ConsumerState<TransferPage> {
             data: (list) {
               final active = list.items.where((a) => a.status == 'ACTIVE').toList();
               if (active.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Text('You need an active account to send money.', textAlign: TextAlign.center)));
-              _source ??= preferredSource(ref, active);
+              _source ??= (widget.args.sourceAccountId != null && active.any((a) => a.id == widget.args.sourceAccountId)) ? widget.args.sourceAccountId : preferredSource(ref, active);
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(ZxSpace.md),
                 child: Form(
@@ -149,6 +151,7 @@ class _TransferPageState extends ConsumerState<TransferPage> {
                     TextFormField(controller: _amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Amount (LKR)'), validator: (v) => parseMajorToMinor(v ?? '') == null ? 'Enter an amount like 2500.00' : null),
                     const SizedBox(height: ZxSpace.md),
                     TextFormField(controller: _note, maxLength: 60, decoration: const InputDecoration(labelText: 'Note (optional)')),
+                    DropdownButtonFormField<String?>(initialValue: _category, isExpanded: true, decoration: const InputDecoration(labelText: 'Category (optional)'), items: [const DropdownMenuItem<String?>(value: null, child: Text('No category')), for (final c in paymentCategories) DropdownMenuItem<String?>(value: c, child: Text(c))], onChanged: (v) => setState(() => _category = v)),
                     Row(children: [
                       Expanded(child: OutlinedButton.icon(onPressed: _pickDate, icon: const Icon(Icons.event), label: Text(_date == null ? 'Send now' : 'On ${fmtDate(_date!)}'))),
                       if (_date != null) IconButton(tooltip: 'Send now instead', icon: const Icon(Icons.close), onPressed: () => setState(() { _date = null; _repeat = null; })),
@@ -450,6 +453,19 @@ class ScheduledPage extends ConsumerWidget {
               ))),
             ]),
           ),
+          const SizedBox(height: ZxSpace.md),
+          ref.watch(scheduledHistoryProvider).maybeWhen(
+            data: (past) => past.isEmpty ? const SizedBox.shrink() : ExpansionTile(
+              title: const Text('Past runs'),
+              children: [for (final p in past) ListTile(
+                onTap: () => context.push('/receipts/${p.id}'),
+                leading: Icon(p.status == 'POSTED' ? Icons.check_circle_outline : Icons.error_outline, color: p.status == 'POSTED' ? context.zx.success : context.zx.error),
+                title: Text('${formatMinor(p.amountMinor)} to ${p.recipient.name}'),
+                subtitle: Text(p.status == 'POSTED' ? 'Completed ${p.postedAt == null ? '' : fmtDate(p.postedAt!)}' : 'Failed${p.failureMessage == null ? '' : ': ${p.failureMessage}'}'),
+              )],
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
         ]),
       ))),
     );
@@ -463,7 +479,7 @@ class NotificationsPage extends ConsumerStatefulWidget {
   ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
 }
 
-const _notificationFilters = [('All', null), ('Payments', 'TRANSACTION'), ('Security', 'SECURITY'), ('Accounts', 'ACCOUNT'), ('Cards', 'CARD'), ('Loans', 'LOAN'), ('Deposits', 'DEPOSIT'), ('Budgets', 'BUDGET')];
+const _notificationFilters = [('All', null), ('Payments', 'TRANSACTION'), ('Security', 'SECURITY'), ('Accounts', 'ACCOUNT'), ('Cards', 'CARD'), ('Loans', 'LOAN'), ('Deposits', 'DEPOSIT'), ('Budgets', 'BUDGET'), ('Offers', 'OFFER'), ('Bank notices', 'NOTICE')];
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   String? _category;

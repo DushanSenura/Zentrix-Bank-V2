@@ -33,21 +33,44 @@ class SavingsPage extends ConsumerWidget {
   const SavingsPage({super.key});
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final name = TextEditingController(), target = TextEditingController();
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+    final accounts = (await ref.read(accountListProvider.future)).items.where((a) => a.status == 'ACTIVE' && a.currency == 'LKR').toList();
+    if (!context.mounted) return;
+    final name = TextEditingController(), target = TextEditingController(), monthly = TextEditingController();
+    DateTime? date;
+    bool auto = false;
+    String? account = accounts.isEmpty ? null : accounts.first.id;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, set) => AlertDialog(
       title: const Text('New savings goal'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: name, maxLength: 60, decoration: const InputDecoration(labelText: 'Goal name')),
         TextField(controller: target, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Target (LKR)')),
-      ]),
+        const SizedBox(height: ZxSpace.sm),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.event),
+          label: Text(date == null ? 'Target date (optional)' : 'Target date: ${date!.year}-${date!.month.toString().padLeft(2, '0')}-${date!.day.toString().padLeft(2, '0')}'),
+          onPressed: () async {
+            final d = await showDatePicker(context: ctx, initialDate: DateTime.now().add(const Duration(days: 180)), firstDate: DateTime.now().add(const Duration(days: 1)), lastDate: DateTime.now().add(const Duration(days: 365 * 30)));
+            if (d != null) set(() => date = d);
+          },
+        ),
+        SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Save automatically every month'), value: auto, onChanged: accounts.isEmpty ? null : (v) => set(() => auto = v)),
+        if (auto) ...[
+          TextField(controller: monthly, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Each month (LKR)')),
+          DropdownButtonFormField<String>(initialValue: account, isExpanded: true, decoration: const InputDecoration(labelText: 'Take it from'), items: [for (final a in accounts) DropdownMenuItem(value: a.id, child: Text('${a.title} · ${a.maskedNumber}', overflow: TextOverflow.ellipsis))], onChanged: (v) => set(() => account = v)),
+          const Padding(padding: EdgeInsets.only(top: ZxSpace.xs), child: Text('You approve this with your PIN once. If the account is short in a month, that month is skipped and you are told.')),
+        ],
+      ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')), TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create'))],
-    ));
+    )));
     final n = name.text.trim();
     final t = parseMajorToMinor(target.text);
-    if (ok != true) return;
-    if (n.length < 2 || t == null) { if (context.mounted) _snack(context, 'Enter a name and a target amount.'); return; }
+    final m = auto ? parseMajorToMinor(monthly.text) : null;
+    if (ok != true || !context.mounted) return;
+    if (n.length < 2 || t == null || (auto && (m == null || account == null))) { _snack(context, 'Enter a name, a target and (for automatic saving) a monthly amount.'); return; }
+    String? pin;
+    if (auto) { pin = await askPin(context); if (pin == null) return; }
     try {
-      await ref.read(servicesRepositoryProvider).createGoal(n, t);
+      await ref.read(servicesRepositoryProvider).createGoal(n, t, targetDate: date, monthlyMinor: m, accountId: account, pin: pin);
       ref.invalidate(goalsProvider);
     } on ApiFailure catch (e) {
       if (context.mounted) _snack(context, e.message);
@@ -100,9 +123,12 @@ class SavingsPage extends ConsumerWidget {
                 Semantics(label: '${g.progressPercent} percent saved', child: _Progress(g.progressPercent / 100, g.status == 'ACHIEVED' ? context.zx.success : context.zx.primary)),
                 const SizedBox(height: ZxSpace.xs),
                 Text('${formatMinor(g.savedMinor)} of ${formatMinor(g.targetMinor)} (${g.progressPercent}%)'),
-                Row(children: [
+                if (g.targetDate != null) Text('Target date ${g.targetDate!.toLocal().toString().substring(0, 10)}', style: Theme.of(context).textTheme.bodySmall),
+                if (g.autoMonthlyMinor != null) Text('Saving ${formatMinor(g.autoMonthlyMinor!)} a month${g.autoNextRunAt == null ? '' : ', next on ${g.autoNextRunAt!.toLocal().toString().substring(0, 10)}'}${g.autoFailure == null ? '' : ' (last attempt skipped: ${g.autoFailure})'}', style: Theme.of(context).textTheme.bodySmall),
+                Wrap(children: [
                   TextButton(onPressed: () => _move(context, ref, g, true), child: const Text('Add money')),
                   if (g.savedMinor > 0) TextButton(onPressed: () => _move(context, ref, g, false), child: const Text('Withdraw')),
+                  if (g.autoMonthlyMinor != null) TextButton(onPressed: () async { try { await ref.read(servicesRepositoryProvider).stopAutoSave(g.id); ref.invalidate(goalsProvider); } on ApiFailure catch (e) { if (context.mounted) _snack(context, e.message); } }, child: const Text('Stop auto-save')),
                 ]),
               ]))),
           ]),
@@ -138,6 +164,38 @@ class BudgetsPage extends ConsumerWidget {
     }
   }
 
+  Future<void> _suggest(BuildContext context, WidgetRef ref) async {
+    List<({String category, int suggestedMinor})> items;
+    try {
+      items = await ref.read(servicesRepositoryProvider).budgetSuggestions();
+    } on ApiFailure catch (e) {
+      if (context.mounted) _snack(context, e.message);
+      return;
+    }
+    if (!context.mounted) return;
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Suggested budgets'),
+      content: SizedBox(width: double.maxFinite, child: items.isEmpty
+          ? const Text('There is not enough spending in the last three months to suggest anything yet.')
+          : ListView(shrinkWrap: true, children: [
+              const Padding(padding: EdgeInsets.only(bottom: ZxSpace.sm), child: Text('Your average spending over the last three full months, plus a little room. A starting point, not advice.')),
+              for (final s in items)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(s.category),
+                  subtitle: Text(formatMinor(s.suggestedMinor)),
+                  trailing: TextButton(
+                    onPressed: () async {
+                      try { await ref.read(servicesRepositoryProvider).setBudget(s.category, s.suggestedMinor); ref.invalidate(budgetsProvider); if (ctx.mounted) Navigator.pop(ctx); } on ApiFailure catch (e) { if (ctx.mounted) _snack(ctx, e.message); }
+                    },
+                    child: Text('Use ${s.category}'),
+                  ),
+                ),
+            ])),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+    ));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(budgetsProvider);
@@ -151,6 +209,7 @@ class BudgetsPage extends ConsumerWidget {
           onRefresh: () async => ref.invalidate(budgetsProvider),
           child: ListView(padding: const EdgeInsets.fromLTRB(ZxSpace.md, ZxSpace.md, ZxSpace.md, 96), physics: const AlwaysScrollableScrollPhysics(), children: [
             const Padding(padding: EdgeInsets.only(bottom: ZxSpace.sm), child: Text('Budgets are your own targets for this month. They never block a payment; the bank warns you at 80% and 100%.')),
+            Align(alignment: Alignment.centerLeft, child: TextButton.icon(icon: const Icon(Icons.lightbulb_outline), label: const Text('Suggest budgets'), onPressed: () => _suggest(context, ref))),
             if (v.items.isEmpty) const Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Text('No budgets yet.', textAlign: TextAlign.center)),
             for (final b in v.items)
               Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: GlassCard(blur: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

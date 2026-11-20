@@ -175,42 +175,115 @@ class RegisterPage extends ConsumerStatefulWidget {
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
+/// Five steps: personal details, contact details, sign-in details, identity, review. Nothing is sent until the last step.
+/// The bank then creates the profile and submits the identity details for staff review in one go.
 class _RegisterPageState extends ConsumerState<RegisterPage> with FormRunner {
-  final _form = GlobalKey<FormState>();
-  final _name = TextEditingController(), _user = TextEditingController(), _email = TextEditingController(), _pw = TextEditingController();
+  static const _steps = ['Personal', 'Contact', 'Sign-in', 'Identity', 'Review'];
+  final _forms = List.generate(5, (_) => GlobalKey<FormState>());
+  final _name = TextEditingController(), _dob = TextEditingController(), _nid = TextEditingController();
+  final _email = TextEditingController(), _phone = TextEditingController(), _l1 = TextEditingController(), _city = TextEditingController(), _zip = TextEditingController();
+  final _user = TextEditingController(), _pw = TextEditingController(), _pw2 = TextEditingController();
+  int _step = 0;
+  bool _confirmed = false;
 
   @override
-  void dispose() { for (final c in [_name, _user, _email, _pw]) { c.dispose(); } super.dispose(); }
+  void dispose() { for (final c in [_name, _dob, _nid, _email, _phone, _l1, _city, _zip, _user, _pw, _pw2]) { c.dispose(); } super.dispose(); }
+
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final d = await showDatePicker(context: context, initialDate: DateTime(now.year - 30), firstDate: DateTime(now.year - 100), lastDate: DateTime(now.year - 18, now.month, now.day), helpText: 'Date of birth (18 or older)');
+    if (d != null) setState(() => _dob.text = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}');
+  }
+
+  void _next() {
+    if (!(_forms[_step].currentState?.validate() ?? false)) return;
+    if (_step == 3 && !_confirmed) { setState(() => error = 'Please confirm the details match your national ID.'); return; }
+    setState(() { error = null; _step++; });
+  }
+
+  Future<void> _submit() async {
+    final router = GoRouter.of(context);
+    await run(() async {
+      await ref.read(authControllerProvider.notifier).register(fullName: _name.text.trim(), username: _user.text.trim(), email: _email.text.trim(), password: _pw.text, phone: _phone.text.trim().isEmpty ? null : _phone.text.trim());
+      try {
+        await ref.read(authRepositoryProvider).submitKyc(nationalId: _nid.text.trim(), dateOfBirth: _dob.text.trim(), line1: _l1.text.trim(), city: _city.text.trim(), postalCode: _zip.text.trim());
+        await ref.read(authControllerProvider.notifier).refreshMe();
+      } on ApiFailure {
+        // The account exists and the customer is signed in. The identity step is offered again on the next screen.
+      }
+      router.go('/');
+    });
+    // A refusal about one field (a taken username, a weak password) sends the customer back to the step that has it.
+    if (mounted && fieldErrors.isNotEmpty) {
+      final back = fieldErrors.containsKey('fullName') ? 0 : (fieldErrors.containsKey('email') || fieldErrors.containsKey('phone')) ? 1 : (fieldErrors.containsKey('username') || fieldErrors.containsKey('password')) ? 2 : fieldErrors.containsKey('nationalId') ? 3 : null;
+      if (back != null) setState(() => _step = back);
+    }
+  }
+
+  Widget _gap() => const SizedBox(height: ZxSpace.md);
+
+  Widget _review(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 120, child: Text(k)), Expanded(child: Text(v, style: const TextStyle(fontWeight: FontWeight.w600)))]));
 
   @override
   Widget build(BuildContext context) {
-    return AuthScaffold(title: 'Create your account', back: true, children: [
-      Form(
-        key: _form,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          TextFormField(controller: _name, decoration: InputDecoration(labelText: 'Full name', errorText: fieldErrors['fullName']), validator: _required, textInputAction: TextInputAction.next),
-          const SizedBox(height: ZxSpace.md),
-          TextFormField(controller: _user, decoration: InputDecoration(labelText: 'Username', errorText: fieldErrors['username']), validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch(v ?? '') ? null : '3-30 letters, digits, _ or .'),
-          const SizedBox(height: ZxSpace.md),
-          TextFormField(controller: _email, decoration: InputDecoration(labelText: 'Email', errorText: fieldErrors['email']), keyboardType: TextInputType.emailAddress, validator: (v) => (v ?? '').contains('@') ? null : 'Enter a valid email'),
-          const SizedBox(height: ZxSpace.md),
-          TextFormField(controller: _pw, decoration: InputDecoration(labelText: 'Password', helperText: 'At least 10 characters with upper, lower and a digit', errorText: fieldErrors['password']), obscureText: true, validator: (v) => (v ?? '').length >= 10 ? null : 'At least 10 characters'),
-          const SizedBox(height: ZxSpace.md),
-          ZxErrorText(error),
-          ZxButton(
-            label: 'Continue',
-            loading: busy,
-            onPressed: () {
-              if (!_form.currentState!.validate()) return;
-              final router = GoRouter.of(context);
-              run(() async {
-                await ref.read(authControllerProvider.notifier).register(fullName: _name.text.trim(), username: _user.text.trim(), email: _email.text.trim(), password: _pw.text);
-                router.go('/');
-              });
-            },
-          ),
+    final fields = <Widget>[
+      // 1. personal
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextFormField(controller: _name, decoration: InputDecoration(labelText: 'Full name', errorText: fieldErrors['fullName']), validator: (v) => (v ?? '').trim().length >= 2 ? null : 'Enter your full name', textInputAction: TextInputAction.next),
+        _gap(),
+        TextFormField(controller: _dob, readOnly: true, onTap: _pickDob, decoration: const InputDecoration(labelText: 'Date of birth', suffixIcon: Icon(Icons.event)), validator: (v) => RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(v ?? '') ? null : 'Choose your date of birth'),
+      ]),
+      // 2. contact
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextFormField(controller: _email, decoration: InputDecoration(labelText: 'Email', errorText: fieldErrors['email']), keyboardType: TextInputType.emailAddress, validator: (v) => (v ?? '').contains('@') ? null : 'Enter a valid email'),
+        _gap(),
+        TextFormField(controller: _phone, decoration: InputDecoration(labelText: 'Mobile number (optional)', errorText: fieldErrors['phone']), keyboardType: TextInputType.phone, validator: (v) => (v ?? '').trim().isEmpty || RegExp(r'^\+?[0-9 ]{7,16}$').hasMatch(v!.trim()) ? null : 'Enter a valid number'),
+        _gap(),
+        TextFormField(controller: _l1, decoration: const InputDecoration(labelText: 'Address'), validator: _required, textInputAction: TextInputAction.next),
+        _gap(),
+        Row(children: [
+          Expanded(child: TextFormField(controller: _city, decoration: const InputDecoration(labelText: 'City'), validator: _required)),
+          const SizedBox(width: ZxSpace.sm),
+          Expanded(child: TextFormField(controller: _zip, decoration: const InputDecoration(labelText: 'Postal code'), validator: _required)),
         ]),
-      ),
+      ]),
+      // 3. sign-in
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextFormField(controller: _user, decoration: InputDecoration(labelText: 'Username', errorText: fieldErrors['username']), validator: (v) => RegExp(r'^[A-Za-z0-9_.]{3,30}$').hasMatch(v ?? '') ? null : '3-30 letters, digits, _ or .'),
+        _gap(),
+        TextFormField(controller: _pw, decoration: InputDecoration(labelText: 'Password', helperText: 'At least 10 characters with upper, lower and a digit', errorText: fieldErrors['password']), obscureText: true, validator: (v) => (v ?? '').length >= 10 ? null : 'At least 10 characters'),
+        _gap(),
+        TextFormField(controller: _pw2, decoration: const InputDecoration(labelText: 'Confirm password'), obscureText: true, validator: (v) => v == _pw.text ? null : 'Passwords do not match'),
+      ]),
+      // 4. identity
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('The bank checks your identity before you can open an account. Staff review these details; nothing is approved automatically.'),
+        _gap(),
+        TextFormField(controller: _nid, decoration: InputDecoration(labelText: 'National ID number', errorText: fieldErrors['nationalId']), validator: (v) => RegExp(r'^[A-Za-z0-9]{5,20}$').hasMatch(v ?? '') ? null : 'Enter a valid ID number'),
+        CheckboxListTile(contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: _confirmed, onChanged: (v) => setState(() => _confirmed = v ?? false), title: const Text('These details match my national ID.')),
+      ]),
+      // 5. review
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _review('Name', _name.text), _review('Date of birth', _dob.text), _review('Email', _email.text), _review('Mobile', _phone.text.isEmpty ? '—' : _phone.text),
+        _review('Address', '${_l1.text}, ${_city.text} ${_zip.text}'), _review('Username', _user.text), _review('National ID', _nid.text),
+        const Padding(padding: EdgeInsets.only(top: ZxSpace.sm), child: Text('After you submit, you set your app PIN. You can open accounts once the bank has verified your identity.')),
+      ]),
+    ];
+    return AuthScaffold(title: 'Create your account', back: true, children: [
+      Semantics(label: 'Step ${_step + 1} of ${_steps.length}: ${_steps[_step]}', child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        LinearProgressIndicator(value: (_step + 1) / _steps.length),
+        const SizedBox(height: ZxSpace.xs),
+        Text('Step ${_step + 1} of ${_steps.length}: ${_steps[_step]}', style: Theme.of(context).textTheme.titleSmall),
+      ])),
+      _gap(),
+      Form(key: _forms[_step], child: fields[_step]),
+      _gap(),
+      ZxErrorText(error),
+      Row(children: [
+        if (_step > 0) Expanded(child: OutlinedButton(onPressed: busy ? null : () => setState(() { error = null; _step--; }), child: const Text('Back'))),
+        if (_step > 0) const SizedBox(width: ZxSpace.sm),
+        Expanded(child: ZxButton(label: _step == _steps.length - 1 ? 'Create account' : 'Continue', loading: busy, onPressed: _step == _steps.length - 1 ? _submit : _next)),
+      ]),
     ]);
   }
 }
@@ -226,6 +299,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> with Fo
   final _id = TextEditingController(), _token = TextEditingController(), _pw = TextEditingController();
   bool _requested = false;
   bool _done = false;
+  String? _devCode;
 
   @override
   void dispose() { _id.dispose(); _token.dispose(); _pw.dispose(); super.dispose(); }
@@ -245,20 +319,22 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> with Fo
         TextField(controller: _id, decoration: const InputDecoration(labelText: 'Username or email')),
         const SizedBox(height: ZxSpace.md),
         ZxErrorText(error),
-        ZxButton(label: 'Send reset link', loading: busy, onPressed: () => run(() async {
+        ZxButton(label: 'Send verification code', loading: busy, onPressed: () => run(() async {
           await repo.requestPasswordReset(_id.text.trim());
-          if (mounted) setState(() => _requested = true);
+          final dev = await repo.devResetCode(_id.text.trim());
+          if (mounted) setState(() { _requested = true; _devCode = dev; });
         })),
       ] else ...[
-        const Text('If that account exists, we have sent reset instructions. Enter the code you received and choose a new password.'),
+        const Text('If that account exists, we have sent a 6-digit verification code. It works for 30 minutes and allows 5 attempts.'),
+        if (_devCode != null) Padding(padding: const EdgeInsets.only(top: ZxSpace.sm), child: Text('Development only: your code is $_devCode', style: const TextStyle(fontWeight: FontWeight.w600))),
         const SizedBox(height: ZxSpace.md),
-        TextField(controller: _token, decoration: const InputDecoration(labelText: 'Reset code')),
+        TextField(controller: _token, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'Verification code')),
         const SizedBox(height: ZxSpace.md),
         TextField(controller: _pw, obscureText: true, decoration: InputDecoration(labelText: 'New password', errorText: fieldErrors['password'])),
         const SizedBox(height: ZxSpace.md),
         ZxErrorText(error),
         ZxButton(label: 'Change password', loading: busy, onPressed: () => run(() async {
-          await repo.confirmPasswordReset(_token.text.trim(), _pw.text);
+          await repo.confirmPasswordReset(_id.text.trim(), _token.text.trim(), _pw.text);
           if (mounted) setState(() => _done = true);
         })),
       ],

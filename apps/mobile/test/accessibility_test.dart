@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zentrix_bank/core/design_system/app_theme.dart';
 import 'package:zentrix_bank/core/storage/prefs_store.dart';
+import 'package:zentrix_bank/features/accounts/presentation/accounts_pages.dart' show OpenAccountPage;
 import 'package:zentrix_bank/features/authentication/data/auth_repository.dart';
+import 'package:zentrix_bank/features/authentication/presentation/auth_pages.dart' show ForgotPasswordPage, RegisterPage;
+import 'package:zentrix_bank/features/security_center/security_pages.dart' show SecurityCenterPage;
+import 'package:zentrix_bank/features/services/presentation/savings_pages.dart' show BudgetsPage, SavingsPage;
 import 'package:zentrix_bank/features/insights/presentation/insights_pages.dart';
 import 'package:zentrix_bank/features/fx/fx_pages.dart';
 import 'package:zentrix_bank/features/payments/presentation/payments_pages.dart' show NotificationsPage;
@@ -69,6 +73,12 @@ final pages = <String, Widget Function()>{
   'notifications': () => const NotificationsPage(),
   'transaction details': () => const TransactionDetailsPage(id: 't1'),
   'branches': () => const BranchesPage(),
+  'registration': () => const RegisterPage(),
+  'forgot password': () => const ForgotPasswordPage(),
+  'security centre': () => const SecurityCenterPage(),
+  'savings goals': () => const SavingsPage(),
+  'budgets': () => const BudgetsPage(),
+  'open an account': () => const OpenAccountPage(),
 };
 
 void main() {

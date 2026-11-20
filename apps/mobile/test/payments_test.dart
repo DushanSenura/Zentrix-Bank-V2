@@ -4,6 +4,7 @@ import 'package:zentrix_bank/core/utils/money.dart';
 import 'package:zentrix_bank/features/authentication/data/auth_repository.dart';
 
 import 'fake_api.dart';
+import 'harness.dart' show tallScreen;
 
 Map<String, dynamic> payment(String status, {int amount = 250000, int fee = 0, String? failure, String id = 'p1'}) => {
       'id': id, 'reference': 'ZX20261119ABCD2345', 'kind': 'INTERNAL_TRANSFER', 'status': status, 'amountMinor': amount, 'feeMinor': fee, 'totalMinor': amount + fee,
@@ -18,10 +19,12 @@ Map<String, dynamic>? base(String p) {
   if (p == '/api/v1/notifications') return {'unread': 0, 'items': []};
   if (p == '/api/v1/me/preferences') return {'defaultAccountId': null, 'notifications': {}, 'alwaysOn': ['SECURITY']};
   if (p == '/api/v1/transactions') return {'items': [], 'nextCursor': null}; // the home screen's recent-transactions list
+  if (p == '/api/v1/analytics/summary') return {}; // the home screen's month overview (unparseable on purpose: it just stays hidden)
   return null;
 }
 
 Future<void> openTransferAndReview(WidgetTester t, FakeApi api, {String amount = '2500.00'}) async {
+  tallScreen(t);
   await t.pumpWidget(appWith(api));
   await t.pumpAndSettle();
   await t.tap(find.text('Send money'));
@@ -186,6 +189,7 @@ void main() {
   });
 
   testWidgets('the transfer form validates amounts and account numbers before anything is sent', (t) async {
+    tallScreen(t);
     final api = FakeApi((p, q, b) => base(p) ?? payment('AWAITING_AUTHORIZATION'));
     await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();

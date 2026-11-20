@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/storage/prefs_store.dart';
 
 class Settings {
-  const Settings({this.onboarded = false, this.biometric = false, this.lockMinutes = 2, this.reduceMotion = false, this.themeMode = ThemeMode.system, this.hideBalances = false});
+  const Settings({this.onboarded = false, this.biometric = false, this.lockMinutes = 2, this.reduceMotion = false, this.themeMode = ThemeMode.system, this.hideBalances = false, this.biometricPay = false});
+  final bool biometricPay; // approve payments with biometrics (opt-in; keeps the PIN in the secure store)
   final bool onboarded;
   final bool biometric;
   final int lockMinutes; // 0 = lock whenever the app is backgrounded
@@ -12,7 +13,8 @@ class Settings {
   final ThemeMode themeMode;
   final bool hideBalances;
 
-  Settings copyWith({bool? onboarded, bool? biometric, int? lockMinutes, bool? reduceMotion, ThemeMode? themeMode, bool? hideBalances}) => Settings(
+  Settings copyWith({bool? onboarded, bool? biometric, int? lockMinutes, bool? reduceMotion, ThemeMode? themeMode, bool? hideBalances, bool? biometricPay}) => Settings(
+        biometricPay: biometricPay ?? this.biometricPay,
         onboarded: onboarded ?? this.onboarded,
         biometric: biometric ?? this.biometric,
         lockMinutes: lockMinutes ?? this.lockMinutes,
@@ -36,12 +38,21 @@ class SettingsController extends Notifier<Settings> {
       lockMinutes: int.tryParse(await _p.read('lockMinutes') ?? '') ?? 2,
       reduceMotion: await _p.read('reduceMotion') == '1',
       hideBalances: await _p.read('hideBalances') == '1',
+      biometricPay: await _p.read('biometricPay') == '1' && await _p.read(payPinKey) != null,
       themeMode: ThemeMode.values.firstWhere((m) => m.name == theme, orElse: () => ThemeMode.system),
     );
   }
 
   Future<void> markOnboarded() async { state = state.copyWith(onboarded: true); await _p.write('onboarded', '1'); }
   Future<void> setBiometric(bool v) async { state = state.copyWith(biometric: v); await _p.write('biometric', v ? '1' : '0'); }
+  /// Turning this on stores the (already server-verified) PIN; turning it off, or any PIN change, removes it.
+  Future<void> setBiometricPay(bool v, {String? pin}) async {
+    if (v && pin != null) { await _p.write(payPinKey, pin); }
+    if (!v) { await _p.delete(payPinKey); }
+    state = state.copyWith(biometricPay: v);
+    await _p.write('biometricPay', v ? '1' : '0');
+  }
+
   Future<void> setLockMinutes(int m) async { state = state.copyWith(lockMinutes: m); await _p.write('lockMinutes', '$m'); }
   Future<void> setReduceMotion(bool v) async { state = state.copyWith(reduceMotion: v); await _p.write('reduceMotion', v ? '1' : '0'); }
   Future<void> setHideBalances(bool v) async { state = state.copyWith(hideBalances: v); await _p.write('hideBalances', v ? '1' : '0'); }
@@ -49,8 +60,10 @@ class SettingsController extends Notifier<Settings> {
 
   /// Customer-specific choices must not leak to the next person on a shared device.
   Future<void> clearCustomerPrefs() async {
-    state = state.copyWith(biometric: false);
+    state = state.copyWith(biometric: false, biometricPay: false);
     await _p.delete('biometric');
+    await _p.delete('biometricPay');
+    await _p.delete(payPinKey);
   }
 }
 

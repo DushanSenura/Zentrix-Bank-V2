@@ -12,7 +12,7 @@ import { PinService } from '../auth/pin.service';
 import { PolicyService, startOfBankingDay } from '../payments/policy.service';
 
 /** Notification categories a customer may switch off. SECURITY is deliberately absent: it is always delivered. */
-export const MUTABLE_CATEGORIES = ['TRANSACTION', 'ACCOUNT', 'CARD', 'LOAN', 'DEPOSIT', 'BUDGET'] as const;
+export const MUTABLE_CATEGORIES = ['TRANSACTION', 'ACCOUNT', 'CARD', 'LOAN', 'DEPOSIT', 'BUDGET', 'OFFER', 'NOTICE'] as const;
 
 const profileSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200).optional(),

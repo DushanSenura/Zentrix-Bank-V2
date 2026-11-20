@@ -46,6 +46,8 @@ const notificationCategoryLabels = {
   'LOAN': 'Loans',
   'DEPOSIT': 'Fixed deposits',
   'BUDGET': 'Budgets',
+  'OFFER': 'Offers and promotions',
+  'NOTICE': 'Bank notices',
 };
 
 class ProfileRepository {

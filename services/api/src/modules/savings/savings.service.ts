@@ -12,16 +12,28 @@ import { BILLERS } from '../payments/catalog';
 import { startOfBankingDay } from '../payments/policy.service';
 
 /** Spending category of a posted payment, used by budgets. Own-account moves are not spending and have no category. */
-export function paymentCategory(kind: PaymentKind, destination: unknown): string | null {
+export function paymentCategory(kind: PaymentKind, destination: unknown, chosen?: string | null): string | null {
+  if (kind === 'OWN_TRANSFER') return null;
+  if (chosen) return chosen; // the customer's own label wins
   switch (kind) {
-    case 'OWN_TRANSFER': return null;
     case 'BILL_PAYMENT': return (destination as { category?: string }).category ?? 'Other';
     case 'LOAN_INSTALMENT': return 'Loan repayments';
     default: return 'Transfers';
   }
 }
 
-export const BUDGET_CATEGORIES = [...new Set([...BILLERS.map((b) => b.category), 'Transfers', 'Loan repayments'])];
+/** The categories a customer can label a payment with (and budget against). */
+export const SPENDING_CATEGORIES = ['Food', 'Shopping', 'Transport', 'Bills', 'Entertainment', 'Health', 'Education', 'Other'] as const;
+export const BUDGET_CATEGORIES = [...new Set([...SPENDING_CATEGORIES, ...BILLERS.map((b) => b.category), 'Transfers', 'Loan repayments'])];
+
+/** The same moment one calendar month later (clamped to the month's length). */
+export function addMonth(d: Date): Date {
+  const day = d.getUTCDate();
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()));
+  const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+  t.setUTCDate(Math.min(day, last));
+  return t;
+}
 
 /** First day of the current banking month (Sri Lanka time) as a UTC instant, and its YYYY-MM label. */
 export function bankingMonth(now: Date): { start: Date; label: string } {
@@ -35,9 +47,10 @@ export class SavingsService {
   constructor(private readonly prisma: PrismaService, private readonly ledger: LedgerService, private readonly audit: AuditService, private readonly pins: PinService) {}
 
   // ───────────────────────── goals ─────────────────────────
-  private view(g: { id: string; name: string; targetMinor: bigint; targetDate: Date | null; status: string; createdAt: Date }, saved: bigint) {
+  private view(g: { id: string; name: string; targetMinor: bigint; targetDate: Date | null; status: string; createdAt: Date; monthlyAutoMinor?: bigint | null; autoSourceAccountId?: string | null; autoNextRunAt?: Date | null; autoLastFailure?: string | null }, saved: bigint) {
     const pct = g.targetMinor > 0n ? Number((saved * 100n) / g.targetMinor) : 0;
-    return { id: g.id, name: g.name, targetMinor: num(g.targetMinor), savedMinor: num(saved), progressPercent: Math.min(100, pct), targetDate: g.targetDate?.toISOString() ?? null, status: g.status };
+    return { id: g.id, name: g.name, targetMinor: num(g.targetMinor), savedMinor: num(saved), progressPercent: Math.min(100, pct), targetDate: g.targetDate?.toISOString() ?? null, status: g.status,
+      autoSave: g.monthlyAutoMinor ? { monthlyMinor: num(g.monthlyAutoMinor), accountId: g.autoSourceAccountId ?? null, nextRunAt: g.autoNextRunAt?.toISOString() ?? null, lastFailure: g.autoLastFailure ?? null } : null };
   }
 
   async list(customerId: string) {
@@ -47,18 +60,83 @@ export class SavingsService {
     return { items, totalSavedMinor: items.reduce((s, i) => s + i.savedMinor, 0) };
   }
 
-  async create(customerId: string, i: { name: string; targetMinor: number; targetDate?: string }) {
+  /** Checks the account for a monthly auto-save and the customer's PIN. The PIN authorises the standing instruction once, here. */
+  private async checkAuto(customerId: string, accountId: string, pin: string) {
+    const acc = await this.prisma.account.findUnique({ where: { id: accountId } });
+    if (!acc || acc.customerId !== customerId) throw new NotFoundException({ code: 'not_found', message: 'Account not found' });
+    if (acc.status !== 'ACTIVE' || acc.currency !== 'LKR') throw new ConflictException({ code: 'account_restricted', message: 'Choose an active rupee account' });
+    await this.pins.verify(customerId, pin);
+  }
+
+  async create(customerId: string, i: { name: string; targetMinor: number; targetDate?: string; monthlyAutoMinor?: number; autoAccountId?: string; pin?: string }) {
+    if (i.monthlyAutoMinor) {
+      if (!i.autoAccountId || !i.pin) throw new BadRequestException({ code: 'validation_failed', message: 'Choose the account and enter your PIN to turn on monthly saving' });
+      await this.checkAuto(customerId, i.autoAccountId, i.pin);
+    }
     const date = i.targetDate ? new Date(i.targetDate) : null;
     if (date && (Number.isNaN(date.getTime()) || date.getTime() < Date.now())) throw new BadRequestException({ code: 'validation_failed', message: 'Choose a target date in the future', fields: { targetDate: 'Invalid date' } });
     if ((await this.prisma.savingsGoal.count({ where: { customerId, status: { not: 'CLOSED' } } })) >= 20) throw new ConflictException({ code: 'goal_limit', message: 'You can have at most 20 active goals' });
     const g = await this.prisma.$transaction(async (tx) => {
       const id = crypto.randomUUID();
       const la = await tx.ledgerAccount.create({ data: { code: `GOAL-${id}`, name: `Savings goal ${id}`, type: 'LIABILITY', currency: 'LKR' } });
-      const goal = await tx.savingsGoal.create({ data: { id, customerId, name: i.name, targetMinor: BigInt(i.targetMinor), targetDate: date, ledgerAccountId: la.id } });
+      const goal = await tx.savingsGoal.create({ data: { id, customerId, name: i.name, targetMinor: BigInt(i.targetMinor), targetDate: date, ledgerAccountId: la.id, ...(i.monthlyAutoMinor ? { monthlyAutoMinor: BigInt(i.monthlyAutoMinor), autoSourceAccountId: i.autoAccountId, autoNextRunAt: addMonth(new Date()) } : {}) } });
       await this.audit.record({ actorId: customerId, actorType: 'CUSTOMER', action: 'savings.goal_created', subjectType: 'SavingsGoal', subjectId: id }, tx);
       return goal;
     });
     return this.view(g, 0n);
+  }
+
+  /** Turns monthly saving on, changes it, or (monthlyAutoMinor null) turns it off. Turning on or changing needs the PIN. */
+  async setAuto(customerId: string, goalId: string, i: { monthlyAutoMinor: number | null; accountId?: string; pin?: string }) {
+    const g = await this.owned(customerId, goalId);
+    if (g.status === 'CLOSED') throw new ConflictException({ code: 'goal_closed', message: 'This goal is closed' });
+    if (i.monthlyAutoMinor === null) {
+      const off = await this.prisma.savingsGoal.update({ where: { id: goalId }, data: { monthlyAutoMinor: null, autoSourceAccountId: null, autoNextRunAt: null, autoLastFailure: null } });
+      return this.view(off, (await this.prisma.ledgerAccount.findUniqueOrThrow({ where: { id: g.ledgerAccountId } })).balanceMinor);
+    }
+    if (!i.accountId || !i.pin) throw new BadRequestException({ code: 'validation_failed', message: 'Choose the account and enter your PIN' });
+    await this.checkAuto(customerId, i.accountId, i.pin);
+    const on = await this.prisma.savingsGoal.update({ where: { id: goalId }, data: { monthlyAutoMinor: BigInt(i.monthlyAutoMinor), autoSourceAccountId: i.accountId, autoNextRunAt: g.autoNextRunAt ?? addMonth(new Date()), autoLastFailure: null } });
+    return this.view(on, (await this.prisma.ledgerAccount.findUniqueOrThrow({ where: { id: g.ledgerAccountId } })).balanceMinor);
+  }
+
+  /**
+   * Monthly saving, run by the job tick. Each goal is claimed with a compare-and-set on its next-run time and posted under a
+   * reference that names the goal and the month, so a repeated tick can never save twice. A shortfall skips that month and says so.
+   */
+  async runAutoSaves(now = new Date()): Promise<{ saved: number; failed: number }> {
+    let saved = 0, failed = 0;
+    const due = await this.prisma.savingsGoal.findMany({ where: { status: 'ACTIVE', monthlyAutoMinor: { not: null }, autoNextRunAt: { lte: now } }, orderBy: { autoNextRunAt: 'asc' }, take: 200 });
+    for (const g of due) {
+      const dueAt = g.autoNextRunAt!;
+      const next = addMonth(dueAt);
+      const label = `${dueAt.getUTCFullYear()}${String(dueAt.getUTCMonth() + 1).padStart(2, '0')}`;
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const claimed = await tx.savingsGoal.updateMany({ where: { id: g.id, autoNextRunAt: dueAt, status: 'ACTIVE' }, data: { autoNextRunAt: next, autoLastFailure: null } });
+          if (claimed.count !== 1) return;
+          const acc = g.autoSourceAccountId ? await tx.account.findUnique({ where: { id: g.autoSourceAccountId }, include: { ledgerAccount: true } }) : null;
+          if (!acc?.ledgerAccount || acc.status !== 'ACTIVE') throw new LedgerRejection('ACCOUNT_RESTRICTED', 'The account is not available');
+          const amount = g.monthlyAutoMinor!;
+          await this.ledger.post({ reference: `GOAL-AUTO-${g.id}-${label}`, kind: 'GOAL_CONTRIBUTION', currency: acc.currency, description: `Monthly saving towards ${g.name}`, postings: [
+            { ledgerAccountId: acc.ledgerAccount.id, direction: 'DEBIT', amountMinor: amount, currency: acc.currency },
+            { ledgerAccountId: g.ledgerAccountId, direction: 'CREDIT', amountMinor: amount, currency: acc.currency } ] }, tx);
+          const total = (await tx.ledgerAccount.findUniqueOrThrow({ where: { id: g.ledgerAccountId } })).balanceMinor;
+          await queueNotifications(tx, 'savings.auto_saved', [{ userId: g.customerId, category: 'ACCOUNT', title: 'Monthly saving made', body: `${lkr(amount)} was saved towards "${g.name}". You have ${lkr(total)} saved.` }]);
+          if (total >= g.targetMinor) {
+            await tx.savingsGoal.update({ where: { id: g.id }, data: { status: 'ACHIEVED', autoNextRunAt: null } });
+            await queueNotifications(tx, 'savings.goal_achieved', [{ userId: g.customerId, category: 'ACCOUNT', title: 'Goal reached!', body: `You have saved ${lkr(total)} for "${g.name}".` }]);
+          }
+        });
+        saved++;
+      } catch (e) {
+        if (!(e instanceof LedgerRejection)) throw e;
+        failed++;
+        await this.prisma.savingsGoal.update({ where: { id: g.id }, data: { autoNextRunAt: next, autoLastFailure: e.code === 'INSUFFICIENT_FUNDS' ? 'Not enough money in the account' : 'The account was not available' } });
+        await queueNotifications(this.prisma, 'savings.auto_failed', [{ userId: g.customerId, category: 'ACCOUNT', title: 'Monthly saving skipped', body: `We could not save ${lkr(g.monthlyAutoMinor!)} towards "${g.name}" this month. ${e.code === 'INSUFFICIENT_FUNDS' ? 'The account did not have enough money.' : 'The account was not available.'}` }]);
+      }
+    }
+    return { saved, failed };
   }
 
   private async owned(customerId: string, id: string) {
@@ -125,11 +203,11 @@ export class SavingsService {
     const { start } = bankingMonth(now);
     const [rows, paid] = await Promise.all([
       this.prisma.budget.findMany({ where: { customerId }, orderBy: { category: 'asc' } }),
-      this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start } }, select: { kind: true, destination: true, amountMinor: true } }),
+      this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start } }, select: { kind: true, destination: true, category: true, amountMinor: true } }),
     ]);
     const spent = new Map<string, bigint>();
     for (const p of paid) {
-      const c = paymentCategory(p.kind, p.destination);
+      const c = paymentCategory(p.kind, p.destination, p.category);
       if (c) spent.set(c, (spent.get(c) ?? 0n) + p.amountMinor);
     }
     return {
@@ -157,14 +235,14 @@ export class SavingsService {
    * Called after a payment posts. Notifies ONCE per threshold (80%, 100%) per month. Never blocks or fails a payment:
    * budgets are the customer's own targets. The compare-and-set makes concurrent payments notify only once.
    */
-  async checkAfterPayment(customerId: string, kind: PaymentKind, destination: unknown, now = new Date()): Promise<void> {
-    const category = paymentCategory(kind, destination);
+  async checkAfterPayment(customerId: string, kind: PaymentKind, destination: unknown, now = new Date(), chosen?: string | null): Promise<void> {
+    const category = paymentCategory(kind, destination, chosen);
     if (!category) return;
     const b = await this.prisma.budget.findUnique({ where: { customerId_category: { customerId, category } } });
     if (!b) return;
     const { start, label } = bankingMonth(now);
-    const agg = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start } }, select: { kind: true, destination: true, amountMinor: true } });
-    const spent = agg.filter((p) => paymentCategory(p.kind, p.destination) === category).reduce((s, p) => s + p.amountMinor, 0n);
+    const agg = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start } }, select: { kind: true, destination: true, category: true, amountMinor: true } });
+    const spent = agg.filter((p) => paymentCategory(p.kind, p.destination, p.category) === category).reduce((s, p) => s + p.amountMinor, 0n);
     const pct = b.limitMinor > 0n ? Number((spent * 100n) / b.limitMinor) : 0;
     const level = pct >= 100 ? 100 : pct >= 80 ? 80 : 0;
     if (level === 0) return;

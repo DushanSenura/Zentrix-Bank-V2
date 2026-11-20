@@ -26,6 +26,7 @@ const BranchesPage = page(() => import('./features/support/SupportPages'), 'Bran
 const DisputesPage = page(() => import('./features/support/SupportPages'), 'DisputesPage')
 const TicketsPage = page(() => import('./features/support/SupportPages'), 'TicketsPage')
 const FxRatesPage = page(() => import('./features/fx/FxRatesPage'), 'FxRatesPage')
+const AnnouncementsPage = page(() => import('./features/support/AnnouncementsPage'), 'AnnouncementsPage')
 const RolesPage = page(() => import('./features/staff/StaffPages'), 'RolesPage')
 const StaffPage = page(() => import('./features/staff/StaffPages'), 'StaffPage')
 
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="risk" element={g(['risk.review'], <RiskPage />)} />
           <Route path="health" element={g(['reports.read'], <SystemHealthPage />)} />
           <Route path="fx" element={g(['settings.manage'], <FxRatesPage />)} />
+          <Route path="announcements" element={g(['settings.manage'], <AnnouncementsPage />)} />
           <Route path="reports" element={g(['reports.read'], <ReportsPage />)} />
           <Route path="audit" element={g(['audit.read'], <AuditPage />)} />
           <Route path="staff" element={g(['staff.manage'], <StaffPage />)} />

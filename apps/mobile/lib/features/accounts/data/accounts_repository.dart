@@ -71,6 +71,13 @@ class ApplicationInfo {
 }
 
 /// Read-only view of what the bank's ledger says. The app never computes or edits balances.
+class MonthlySummary {
+  const MonthlySummary({required this.month, required this.inMinor, required this.outMinor});
+  final String month;
+  final int inMinor;
+  final int outMinor;
+}
+
 class AccountsRepository {
   AccountsRepository(this._api);
   final AuthRepository _api;
@@ -95,8 +102,17 @@ class AccountsRepository {
     return [for (final p in (d['items'] as List).cast<Map<String, dynamic>>()) Product(code: p['code'] as String, name: p['name'] as String, kind: p['kind'] as String, minOpeningMinor: (p['minOpeningMinor'] as num).toInt(), interestRateBps: (p['interestRateBps'] as num).toInt())];
   }
 
-  Future<void> apply(String productCode, String? nickname) =>
-      _api.postJson('/api/v1/account-applications', {'productCode': productCode, 'nickname': ?(nickname != null && nickname.isNotEmpty ? nickname : null)});
+  Future<void> apply(String productCode, String? nickname, {String? fundingAccountId, int? fundingAmountMinor, String? pin}) =>
+      _api.postJson('/api/v1/account-applications', {
+        'productCode': productCode,
+        'nickname': ?(nickname != null && nickname.isNotEmpty ? nickname : null),
+        if (fundingAccountId != null) ...{'fundingAccountId': fundingAccountId, 'fundingAmountMinor': fundingAmountMinor, 'pin': pin},
+      });
+
+  Future<MonthlySummary> monthlySummary(String accountId) async {
+    final j = await _api.getJson('/api/v1/accounts/$accountId/monthly-summary');
+    return MonthlySummary(month: j['month'] as String, inMinor: (j['moneyInMinor'] as num).toInt(), outMinor: (j['moneyOutMinor'] as num).toInt());
+  }
 
   Future<List<ApplicationInfo>> applications() async {
     final d = await _api.getJson('/api/v1/account-applications');
@@ -109,6 +125,7 @@ class AccountsRepository {
 
 final accountsRepositoryProvider = Provider<AccountsRepository>((ref) => AccountsRepository(ref.watch(authRepositoryProvider)));
 final accountListProvider = FutureProvider.autoDispose((ref) => ref.watch(accountsRepositoryProvider).accounts(), retry: noRetry);
+final monthlySummaryProvider = FutureProvider.autoDispose.family<MonthlySummary, String>((ref, id) => ref.watch(accountsRepositoryProvider).monthlySummary(id), retry: noRetry);
 final accountProvider = FutureProvider.autoDispose.family<Account, String>((ref, id) => ref.watch(accountsRepositoryProvider).account(id), retry: noRetry);
 final productsProvider = FutureProvider.autoDispose((ref) => ref.watch(accountsRepositoryProvider).products(), retry: noRetry);
 final applicationsProvider = FutureProvider.autoDispose((ref) => ref.watch(accountsRepositoryProvider).applications(), retry: noRetry);

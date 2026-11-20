@@ -15,6 +15,7 @@ import { BeneficiariesService } from './beneficiaries.service';
 import { BILLERS, encodeQr, SIMULATED_BANKS } from './catalog';
 import { RemindersService } from '../risk/reminders.service';
 import { RiskService } from '../risk/risk.service';
+import { SavingsService, SPENDING_CATEGORIES } from '../savings/savings.service';
 import { PaymentsService } from './payments.service';
 
 const money = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
@@ -33,8 +34,10 @@ const createSchema = z.object({
   destination,
   amountMinor: money,
   note: z.string().trim().max(60).optional(),
+  category: z.enum(SPENDING_CATEGORIES).optional(),
   scheduledFor: z.string().datetime().optional(),
 }).strict();
+const saveRecipientSchema = z.object({ nickname: z.string().trim().max(40).optional() }).strict();
 const authorizeSchema = z.object({ pin: z.string().regex(/^(\d{4}|\d{6})$/) }).strict();
 const recurringSchema = z.object({
   sourceAccountId: z.string().uuid(), destination, amountMinor: money, frequency: z.enum(['WEEKLY', 'MONTHLY']),
@@ -59,8 +62,11 @@ export class PaymentsController {
     return r.body;
   }
 
-  @Get('payments') list(@CurrentUser() u: AuthUser, @Query('scheduled') scheduled?: string) { return this.payments.list(u.id, scheduled === 'true'); }
+  /** scheduled=true: payments waiting for their date. status: completed | pending | failed. source=scheduled: payments created by a repeating instruction. */
+  @Get('payments') list(@CurrentUser() u: AuthUser, @Query('scheduled') scheduled?: string, @Query('status') status?: string, @Query('source') source?: string) { return this.payments.list(u.id, scheduled === 'true', status, source === 'scheduled'); }
   @Get('payments/by-key/:key') byKey(@CurrentUser() u: AuthUser, @Param('key') key: string) { return this.payments.getByKey(u.id, key.slice(0, 64)); }
+  @Post('payments/:id/save-recipient') @HttpCode(201)
+  saveRecipient(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(saveRecipientSchema)) b: z.infer<typeof saveRecipientSchema>) { return this.beneficiaries.saveFromPayment(u.id, id, b.nickname); }
   @Get('payments/:id') get(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) { return this.payments.get(u.id, id); }
 
   /** Step 2: server-verified PIN, then atomic execution. Safe to repeat: a finished payment just returns its receipt. */
@@ -157,6 +163,7 @@ export class InternalJobsController {
     private readonly loans: LoansService,
     private readonly risk: RiskService,
     private readonly reminders: RemindersService,
+    private readonly savings: SavingsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -179,6 +186,7 @@ export class InternalJobsController {
     const loan = await safe(() => this.loans.runDue(now), { overdue: 0, reminders: 0 }, errors, 'loans');
     const riskScan = await safe(() => this.risk.scan(now), { scanned: 0, raised: 0 }, errors, 'risk');
     const rem = await safe(() => this.reminders.runDue(now), { fdMaturity: 0, scheduledPayments: 0 }, errors, 'reminders');
-    return { ...pay, riskRaised: riskScan.raised, fdReminders: rem.fdMaturity, paymentReminders: rem.scheduledPayments, cardsReady, depositsMatured: dep.matured, depositsRenewed: dep.renewed, depositsFailed: dep.failed, loansOverdue: loan.overdue, loanReminders: loan.reminders, errors };
+    const auto = await safe(() => this.savings.runAutoSaves(now), { saved: 0, failed: 0 }, errors, 'savings');
+    return { ...pay, autoSaved: auto.saved, autoSaveFailed: auto.failed, riskRaised: riskScan.raised, fdReminders: rem.fdMaturity, paymentReminders: rem.scheduledPayments, cardsReady, depositsMatured: dep.matured, depositsRenewed: dep.renewed, depositsFailed: dep.failed, loansOverdue: loan.overdue, loanReminders: loan.reminders, errors };
   }
 }

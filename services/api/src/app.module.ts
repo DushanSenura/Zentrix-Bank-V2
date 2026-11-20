@@ -1,3 +1,4 @@
+import { AdminAnnouncementsController } from './modules/admin/announcements.controller';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -59,7 +60,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController, TwoFactorController, FxController, AdminFxController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController, TwoFactorController, FxController, AdminFxController, AdminAnnouncementsController],
   providers: [
     AuthService,
     LedgerService,

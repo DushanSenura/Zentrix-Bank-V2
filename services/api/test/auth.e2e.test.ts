@@ -163,11 +163,15 @@ describe.skipIf(!TEST_DB)('auth, RBAC and KYC (real database)', () => {
     const ev = (await prisma.outboxEvent.findMany({ where: { topic: 'auth.password_reset_requested' }, orderBy: { createdAt: 'desc' } })).find(
       (e) => (e.payload as { userId?: string }).userId === user.id,
     );
-    const token = (ev!.payload as { devToken: string }).devToken;
+    const code = (ev!.payload as { devCode: string }).devCode;
+    expect(code).toMatch(/^\d{6}$/);
+    const identifier = u('reset');
+    const wrong = code === '000000' ? '111111' : '000000';
+    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ identifier, code: wrong, newPassword: 'An0therStr0ng!pw' })).status).toBe(401);
     const NEW = 'An0therStr0ng!pw';
-    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ token, newPassword: 'weak' })).status).toBe(400);
-    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ token, newPassword: NEW })).status).toBe(204);
-    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ token, newPassword: NEW })).status).toBe(401); // single use
+    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ identifier, code, newPassword: 'weak' })).status).toBe(400);
+    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ identifier, code, newPassword: NEW })).status).toBe(204);
+    expect((await http.post('/api/v1/auth/password-reset/confirm').send({ identifier, code, newPassword: NEW })).status).toBe(401); // single use
     expect((await http.get('/api/v1/me').set('Authorization', `Bearer ${reg.accessToken}`)).status).toBe(401); // old session revoked
     expect((await http.post('/api/v1/auth/login').send({ identifier: u('reset'), password: PW })).status).toBe(401);
     expect((await http.post('/api/v1/auth/login').send({ identifier: u('reset'), password: NEW })).status).toBe(200);

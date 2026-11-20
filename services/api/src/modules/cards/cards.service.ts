@@ -214,6 +214,21 @@ export class CardsService {
     return { blocked: true, replacementId: result.replacement?.id ?? null };
   }
 
+  /** The customer's own "block this card for good": permanent, no replacement is ordered (use report-lost for that). */
+  async blockPermanently(customerId: string, id: string, pin: string) {
+    const c = await this.owned(customerId, id);
+    await this.pins.verify(customerId, pin);
+    const done = await this.prisma.$transaction(async (tx) => {
+      const ok = await this.setStatus(tx, id, ['ACTIVE', 'FROZEN', 'READY_TO_COLLECT', 'PREPARING'], 'BLOCKED', 'BLOCKED_BY_CUSTOMER', customerId);
+      if (!ok) return false;
+      await this.audit.record({ actorId: customerId, actorType: 'CUSTOMER', action: 'card.blocked_by_customer', subjectType: 'Card', subjectId: id }, tx);
+      await queueNotifications(tx, 'card.blocked', [{ userId: customerId, category: 'CARD', title: 'Card blocked', body: `Your card ending ${c.last4 ?? '----'} was permanently blocked at your request.` }]);
+      return true;
+    });
+    if (!done) throw new ConflictException({ code: 'invalid_state', message: 'This card cannot be blocked in its current state' });
+    return { blocked: true };
+  }
+
   /** Simulated issuer PIN change: verified against the issuer hash, never stored or logged in clear. */
   async changeCardPin(customerId: string, id: string, currentPin: string, newPin: string) {
     const c = await this.owned(customerId, id);

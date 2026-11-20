@@ -3,6 +3,7 @@ import { Prisma, type AccountStatus } from '@prisma/client';
 import { randomInt } from 'node:crypto';
 import { AuditService } from '../../common/audit.service';
 import { PrismaService } from '../../common/prisma.service';
+import { PinService } from '../auth/pin.service';
 import { LedgerRejection, LedgerService } from '../ledger/ledger.service';
 
 /** Minor-unit amounts cross the API as JSON numbers; refuse anything that would lose precision. */
@@ -23,7 +24,7 @@ const ALLOWED: Record<AccountStatus, AccountStatus[]> = {
 
 @Injectable()
 export class AccountsService {
-  constructor(private readonly prisma: PrismaService, private readonly ledger: LedgerService, private readonly audit: AuditService) {}
+  constructor(private readonly prisma: PrismaService, private readonly ledger: LedgerService, private readonly audit: AuditService, private readonly pins: PinService) {}
 
   private async maxAccounts(): Promise<number> {
     const c = await this.prisma.systemConfiguration.findUnique({ where: { key: 'accounts.maxPerCustomer' } });
@@ -70,6 +71,21 @@ export class AccountsService {
     return this.view(await this.getOwned(customerId, accountId));
   }
 
+  /** Money in and out of ONE account for a banking month (Sri Lanka time), from the postings. Own-account moves count here: they do move this account's balance. */
+  async monthlySummary(customerId: string, accountId: string, month?: string, now = new Date()) {
+    const acc = await this.getOwned(customerId, accountId);
+    const local = new Date(now.getTime() + 5.5 * 3_600_000);
+    const label = month ?? `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = label.split('-').map(Number) as [number, number];
+    const start = new Date(Date.UTC(y, m - 1, 1) - 5.5 * 3_600_000);
+    const end = new Date(Date.UTC(y, m, 1) - 5.5 * 3_600_000);
+    const la = acc.ledgerAccount;
+    const rows = la ? await this.prisma.ledgerPosting.groupBy({ by: ['direction'], where: { ledgerAccountId: la.id, createdAt: { gte: start, lt: end } }, _sum: { amountMinor: true } }) : [];
+    const inMinor = rows.find((r) => r.direction === 'CREDIT')?._sum.amountMinor ?? 0n;
+    const outMinor = rows.find((r) => r.direction === 'DEBIT')?._sum.amountMinor ?? 0n;
+    return { month: label, currency: acc.currency, moneyInMinor: num(inMinor), moneyOutMinor: num(outMinor), netMinor: num(inMinor - outMinor) };
+  }
+
   /** Keyset-paginated history straight from the postings (the source of truth). */
   async transactions(customerId: string, accountId: string, limit: number, cursor?: string) {
     const acc = await this.getOwned(customerId, accountId);
@@ -112,7 +128,7 @@ export class AccountsService {
       .then((rows) => ({ items: rows.map((p) => ({ code: p.code, name: p.name, kind: p.kind, currency: p.currency, minOpeningMinor: num(p.minOpeningMinor), interestRateBps: p.interestRateBps })) }));
   }
 
-  async apply(customerId: string, productCode: string, nickname?: string) {
+  async apply(customerId: string, productCode: string, nickname?: string, funding?: { accountId: string; amountMinor: number; pin: string }) {
     const product = await this.prisma.accountProduct.findFirst({ where: { code: productCode, active: true, kind: { in: ['SAVINGS', 'CURRENT', 'FOREIGN_CURRENCY'] } } });
     if (!product) throw new NotFoundException({ code: 'product_not_found', message: 'That account type is not available' });
     const max = await this.maxAccounts();
@@ -121,7 +137,15 @@ export class AccountsService {
       this.prisma.accountApplication.count({ where: { customerId, status: { in: ['SUBMITTED', 'UNDER_REVIEW'] } } }),
     ]);
     if (open + pending >= max) throw new ConflictException({ code: 'account_limit', message: `You can hold at most ${max} accounts (including pending applications)` });
-    const app = await this.prisma.accountApplication.create({ data: { customerId, productId: product.id, requestedNickname: nickname } });
+    if (funding) {
+      if (product.currency !== 'LKR') throw new BadRequestException({ code: 'funding_not_supported', message: 'Foreign-currency accounts open without a deposit' });
+      if (BigInt(funding.amountMinor) < product.minOpeningMinor) throw new BadRequestException({ code: 'opening_deposit_required', message: 'The opening deposit is below the product minimum', fields: { fundingAmountMinor: `Minimum is ${num(product.minOpeningMinor)}` } });
+      const from = await this.getOwned(customerId, funding.accountId);
+      if (from.status !== 'ACTIVE' || from.currency !== 'LKR') throw new ConflictException({ code: 'funding_account_unavailable', message: 'Choose an active rupee account to pay the opening deposit from' });
+      if ((from.ledgerAccount?.balanceMinor ?? 0n) < BigInt(funding.amountMinor) && !from.ledgerAccount?.allowNegative) throw new ConflictException({ code: 'insufficient_funds', message: 'That account does not have enough for the opening deposit' });
+      await this.pins.verify(customerId, funding.pin);
+    }
+    const app = await this.prisma.accountApplication.create({ data: { customerId, productId: product.id, requestedNickname: nickname, ...(funding ? { fundingAccountId: funding.accountId, fundingAmountMinor: BigInt(funding.amountMinor) } : {}) } });
     await this.audit.record({ actorId: customerId, actorType: 'CUSTOMER', action: 'account.application_submitted', subjectType: 'AccountApplication', subjectId: app.id });
     return { id: app.id, status: app.status };
   }
@@ -140,6 +164,7 @@ export class AccountsService {
       items: rows.map((a) => ({
         id: a.id, status: a.status, createdAt: a.createdAt, productCode: a.product.code, productName: a.product.name, minOpeningMinor: num(a.product.minOpeningMinor),
         customerName: a.customer.fullName, customerNumber: a.customer.customerNumber, kycStatus: a.customer.kycStatus, nickname: a.requestedNickname,
+        paidFromAccountMinor: a.fundingAmountMinor === null ? null : num(a.fundingAmountMinor),
       })),
     };
   }
@@ -167,7 +192,8 @@ export class AccountsService {
         }
 
         if (app.customer.user.status !== 'ACTIVE' || app.customer.kycStatus !== 'APPROVED') throw new ConflictException({ code: 'customer_not_verified', message: 'The customer is not verified' });
-        const deposit = BigInt(d.openingDepositMinor ?? 0);
+        const funded = app.fundingAccountId && app.fundingAmountMinor ? app.fundingAmountMinor : null;
+        const deposit = funded ?? BigInt(d.openingDepositMinor ?? 0);
         if (deposit < app.product.minOpeningMinor) throw new BadRequestException({ code: 'opening_deposit_required', message: 'The opening deposit is below the product minimum', fields: { openingDepositMinor: `Minimum is ${num(app.product.minOpeningMinor)}` } });
 
         let accountNumber = '';
@@ -184,11 +210,14 @@ export class AccountsService {
           include: { ledgerAccount: true },
         });
         if (deposit > 0n) {
+          // Funded from the customer's own account (chosen with their PIN at application) or cash received at the branch.
+          const fromLedger = funded ? await tx.ledgerAccount.findUnique({ where: { accountId: app.fundingAccountId! } }) : null;
+          if (funded && !fromLedger) throw new ConflictException({ code: 'funding_account_unavailable', message: 'The funding account is no longer available' });
           await this.ledger.post(
             {
-              reference: `OPEN-${applicationId}`, kind: 'ACCOUNT_OPENING', currency: app.product.currency, description: 'Opening deposit (cash at branch)',
+              reference: funded ? `OPEN-FUND-${applicationId}` : `OPEN-${applicationId}`, kind: 'ACCOUNT_OPENING', currency: app.product.currency, description: funded ? 'Opening deposit (from your own account)' : 'Opening deposit (cash at branch)',
               postings: [
-                { ledgerAccountId: await this.ledger.systemAccountId('cash', tx), direction: 'DEBIT', amountMinor: deposit, currency: app.product.currency },
+                { ledgerAccountId: fromLedger ? fromLedger.id : await this.ledger.systemAccountId('cash', tx), direction: 'DEBIT', amountMinor: deposit, currency: app.product.currency },
                 { ledgerAccountId: account.ledgerAccount!.id, direction: 'CREDIT', amountMinor: deposit, currency: app.product.currency },
               ],
             },

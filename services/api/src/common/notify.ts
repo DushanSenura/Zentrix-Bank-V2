@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client';
 
 export interface Notify {
   userId: string;
-  category: 'TRANSACTION' | 'SECURITY' | 'ACCOUNT' | 'CARD' | 'LOAN' | 'DEPOSIT' | 'BUDGET';
+  category: 'TRANSACTION' | 'SECURITY' | 'ACCOUNT' | 'CARD' | 'LOAN' | 'DEPOSIT' | 'BUDGET' | 'OFFER' | 'NOTICE';
   title: string;
   body: string;
 }

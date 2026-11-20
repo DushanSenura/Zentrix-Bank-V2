@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, NotFoundException, Req } from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException, Query, Req } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
@@ -45,5 +45,17 @@ export class DemoAccountsController {
       };
     }).sort((a, b) => (a.kind === b.kind ? a.role.localeCompare(b.role) : a.kind === 'STAFF' ? -1 : 1));
     return { accounts, note: 'Development only. Fictional people and money.' };
+  }
+
+  /** DEVELOPMENT ONLY: nothing delivers email or SMS locally, so the sign-in screen can show the reset code. Same guards as above. */
+  @Public() @Get('reset-code')
+  async resetCode(@Req() req: Request, @Query('identifier') identifier = '') {
+    if (this.env.APP_ENV !== 'development' || !isLocalNetwork(req.socket?.remoteAddress)) throw new NotFoundException({ code: 'not_found', message: 'Not found' });
+    const id = identifier.trim().toLowerCase();
+    const user = id ? await this.prisma.user.findFirst({ where: { OR: [{ username: id }, { email: id }], type: 'CUSTOMER' } }) : null;
+    if (!user) return { code: null };
+    const events = await this.prisma.outboxEvent.findMany({ where: { topic: 'auth.password_reset_requested' }, orderBy: { createdAt: 'desc' }, take: 50 });
+    const ev = events.find((e) => (e.payload as { userId?: string }).userId === user.id);
+    return { code: (ev?.payload as { devCode?: string } | undefined)?.devCode ?? null };
   }
 }

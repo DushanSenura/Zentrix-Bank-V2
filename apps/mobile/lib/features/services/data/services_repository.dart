@@ -174,7 +174,10 @@ class LoanApplicationModel {
 
 // ───────────────────────── savings & budgets ─────────────────────────
 class GoalModel {
-  const GoalModel({required this.id, required this.name, required this.targetMinor, required this.savedMinor, required this.progressPercent, required this.status, this.targetDate});
+  const GoalModel({required this.id, required this.name, required this.targetMinor, required this.savedMinor, required this.progressPercent, required this.status, this.targetDate, this.autoMonthlyMinor, this.autoNextRunAt, this.autoFailure});
+  final int? autoMonthlyMinor;
+  final DateTime? autoNextRunAt;
+  final String? autoFailure;
   final String id;
   final String name;
   final int targetMinor;
@@ -204,7 +207,7 @@ LoanSummary _loanSummary(Map<String, dynamic> j) {
   return LoanSummary(id: j['id'] as String, reference: j['reference'] as String, productName: (j['productName'] as String?) ?? 'Loan', outstandingMinor: _i(j['outstandingPrincipalMinor']), principalMinor: _i(j['principalMinor']), status: j['status'] as String, nextDue: n == null ? null : _d(n['dueDate']), nextDueMinor: n == null ? null : _i(n['dueMinor']), nextStatus: n == null ? null : n['status'] as String);
 }
 
-GoalModel _goal(Map<String, dynamic> g) => GoalModel(id: g['id'] as String, name: g['name'] as String, targetMinor: _i(g['targetMinor']), savedMinor: _i(g['savedMinor']), progressPercent: _i(g['progressPercent']), status: g['status'] as String, targetDate: g['targetDate'] == null ? null : _d(g['targetDate']));
+GoalModel _goal(Map<String, dynamic> g) => GoalModel(id: g['id'] as String, name: g['name'] as String, targetMinor: _i(g['targetMinor']), savedMinor: _i(g['savedMinor']), progressPercent: _i(g['progressPercent']), status: g['status'] as String, targetDate: g['targetDate'] == null ? null : _d(g['targetDate']), autoMonthlyMinor: (g['autoSave'] as Map<String, dynamic>?) == null ? null : _i((g['autoSave'] as Map<String, dynamic>)['monthlyMinor']), autoNextRunAt: (g['autoSave'] as Map<String, dynamic>?)?['nextRunAt'] == null ? null : _d((g['autoSave'] as Map<String, dynamic>)['nextRunAt']), autoFailure: (g['autoSave'] as Map<String, dynamic>?)?['lastFailure'] as String?);
 
 /// Read/command access to the bank's product services. Every figure shown in the app comes from the bank.
 class ServicesRepository {
@@ -219,6 +222,7 @@ class ServicesRepository {
   Future<void> freezeCard(String id, bool frozen) => _api.postJson('/api/v1/cards/$id/freeze', {'frozen': frozen});
   Future<void> setControls(String id, Map<String, dynamic> body) => _api.putJson('/api/v1/cards/$id/controls', body);
   Future<void> activateCard(String id, String pin, String cardPin) => _api.postJson('/api/v1/cards/$id/activate', {'pin': pin, 'cardPin': cardPin});
+  Future<void> blockPermanently(String id, String pin) => _api.postJson('/api/v1/cards/$id/block', {'pin': pin});
   Future<void> reportLost(String id, String pin) => _api.postJson('/api/v1/cards/$id/report-lost', {'pin': pin});
 
   // fixed deposits
@@ -268,7 +272,19 @@ class ServicesRepository {
 
   // savings
   Future<List<GoalModel>> goals() async => [for (final g in ((await _api.getJson('/api/v1/savings/goals'))['items'] as List).cast<Map<String, dynamic>>()) _goal(g)];
-  Future<void> createGoal(String name, int targetMinor) => _api.postJson('/api/v1/savings/goals', {'name': name, 'targetMinor': targetMinor});
+  Future<void> createGoal(String name, int targetMinor, {DateTime? targetDate, int? monthlyMinor, String? accountId, String? pin}) => _api.postJson('/api/v1/savings/goals', {
+        'name': name,
+        'targetMinor': targetMinor,
+        if (targetDate != null) 'targetDate': targetDate.toUtc().toIso8601String(),
+        if (monthlyMinor != null) ...{'monthlyAutoMinor': monthlyMinor, 'autoAccountId': accountId, 'pin': pin},
+      });
+  Future<void> stopAutoSave(String goalId) => _api.putJson('/api/v1/savings/goals/$goalId/auto', {'monthlyAutoMinor': null});
+
+  /// A starting budget per category from the last three full months (informational).
+  Future<List<({String category, int suggestedMinor})>> budgetSuggestions() async {
+    final j = await _api.getJson('/api/v1/analytics/budget-suggestions');
+    return [for (final r in (j['items'] as List).cast<Map<String, dynamic>>()) (category: r['category'] as String, suggestedMinor: _i(r['suggestedMinor']))];
+  }
   Future<void> moveGoal({required String key, required String goalId, required bool contribute, required String accountId, required int amountMinor, required String pin}) =>
       _api.postJson('/api/v1/savings/goals/$goalId/${contribute ? 'contribute' : 'withdraw'}', {'accountId': accountId, 'amountMinor': amountMinor, 'pin': pin}, headers: {'Idempotency-Key': key});
 

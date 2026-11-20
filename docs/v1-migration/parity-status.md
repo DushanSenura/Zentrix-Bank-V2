@@ -29,8 +29,39 @@ has been run on a physical device.
 | Screenshot blocking (Android), no cloud backup, cleartext off in release | Built earlier |
 | Accessibility tests (tap targets, labels, contrast) on every screen | Extended: light and dark themes, 2x text, reduced motion, on all new screens |
 
+## Checklist round (V1 feature checklist, 22 sections)
+Added after checking the list section by section. Everything below is built against the real backend with tests; none of it has been run on a device.
+
+| Checklist item | V2 |
+| --- | --- |
+| Five-step registration | Personal, Contact, Sign-in, Identity, Review. Nothing is sent until the last step, then the profile and identity details go to the bank together. (V1's "banking" step has no equivalent: accounts are opened after staff verify identity.) |
+| Reset by verification code | A 6-digit code, valid 30 minutes, tied to the username, 5 wrong guesses lock it. **Nothing delivers email or SMS yet**, so in development the code is shown on screen (`GET /dev/reset-code`, 404 elsewhere); staging and production have no delivery channel |
+| Dashboard financial overview | This month's money in, spent and net on the home screen |
+| Open an account with a deposit from another account | Chosen with the PIN at application; moved through the ledger when staff approve (the customer's amount, not what staff type). Rupee accounts only |
+| Monthly money in/out per account, statements link, transfer from this account | On the account screen |
+| Biometric payment authorisation | Opt-in. **Stores the app PIN in the phone's secure storage** (Keystore / Keychain) so a fingerprint can release it; the bank still verifies the PIN on every payment. Turned off on PIN change, sign-out and by the switch. This is a trade-off: the stored PIN is not itself gated by the fingerprint |
+| Save recipient after a payment | Button on the receipt; the account number comes from the stored payment |
+| Pending and failed payments; history type filter | Section on History; type filter (transfers, other bank, bills, QR, loan repayments, exchange) |
+| Scheduled payments: completed and failed history | "Past runs" on the scheduled screen |
+| Cards: carousel, permanent block | Swipeable cards; "Block card permanently" (PIN, no replacement; report-lost still orders one) |
+| Home loan | Added (60 to 300 months, 10.50%) |
+| Savings goals: target date, monthly auto-save | Both. Auto-save is approved once with the PIN, runs from the job tick once per month, never twice, and a shortfall skips that month and notifies |
+| Eight spending categories, suggested budget, savings analysis | Food, Shopping, Transport, Bills, Entertainment, Health, Education, Other can be chosen on a transfer; they drive analytics, budgets and history. Suggested budgets (3-month average plus 5%). Savings rate in the monthly summary |
+| Disputes: choose the transaction, "goods or services not received" | Added |
+| Notification categories Offers and Bank notices; the listed alerts | New categories (Offers can be muted, Security cannot). New alerts: new recipient, PIN changed, password changed, device signed out, large transfer (threshold is a setting). Staff send offers and notices from the portal (Announcements) |
+| Recent security alerts | On the security centre |
+| Glass bottom navigation, glass sheets, fade/slide transitions, PIN shake | Blurred navigation bar; translucent sheets (not blurred); transitions and shake are off with reduce-motion |
+| Data refresh when the connection returns | Home, notifications and insights reload |
+
+Already there and unchanged: splash and onboarding, PIN and biometric unlock, app-switcher privacy cover, session expiry, QR camera permission handling and duplicate-scan protection, PDF receipt sharing, FD terms 3/6/12 months and 24-120 in 12-month steps.
+
+### Checklist items NOT built
+* Sample QR codes (a debug aid in V1); My QR and the demo customers cover testing.
+* Customisable home widgets, push notifications, Sinhala/Tamil app screens (as before).
+* Account approval screen for staff does not yet show "paid from the customer's account"; the API returns it (`paidFromAccountMinor`).
+
 ## Different on purpose
-* **Registration** is one short form followed by identity verification (national ID, date of birth, address) that staff review, instead of V1's five mock steps.
+* **Registration** is five steps ending in identity verification (national ID, date of birth, address) that staff review; V1's mock steps had no review.
 * **International transfers** were "unavailable" in V1; V2 offers currency exchange between your own accounts instead. Sending foreign currency abroad is not built.
 * **Account switching:** V2 shows every account on the home screen rather than one selected account.
 * **Receipts** are shared as PDFs (V1 saved text files).

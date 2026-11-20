@@ -45,11 +45,11 @@ export class AnalyticsService {
   }
 
   private async spending(customerId: string, start: Date, end: Date) {
-    const paid = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start, lt: end } }, select: { id: true, reference: true, kind: true, destination: true, amountMinor: true, postedAt: true } });
+    const paid = await this.prisma.paymentInstruction.findMany({ where: { initiatorId: customerId, status: 'POSTED', postedAt: { gte: start, lt: end } }, select: { id: true, reference: true, kind: true, destination: true, category: true, amountMinor: true, postedAt: true } });
     const byCat = new Map<string, number>();
     const items: { reference: string; category: string; amountMinor: number; postedAt: Date }[] = [];
     for (const p of paid) {
-      const c = paymentCategory(p.kind, p.destination);
+      const c = paymentCategory(p.kind, p.destination, p.category);
       if (!c) continue; // moves between your own accounts are not spending
       byCat.set(c, (byCat.get(c) ?? 0) + num(p.amountMinor));
       items.push({ reference: p.reference, category: c, amountMinor: num(p.amountMinor), postedAt: p.postedAt! });
@@ -69,6 +69,7 @@ export class AnalyticsService {
     return {
       month: label, previousMonth: prevLabel, currency: 'LKR',
       moneyInMinor: inNow, spentMinor: spent.total, netMinor: inNow - spent.total,
+      savings: { netMinor: inNow - spent.total, ratePercent: inNow > 0 ? Math.round(((inNow - spent.total) / inNow) * 100) : null },
       previous: { moneyInMinor: inPrev, spentMinor: prevSpent.total },
       spentChangePercent: pct(spent.total, prevSpent.total),
       categories,
@@ -76,6 +77,18 @@ export class AnalyticsService {
       budgets: budgets.map((b) => { const s = spent.byCat.get(b.category) ?? 0; return { category: b.category, limitMinor: num(b.limitMinor), spentMinor: s, percentUsed: b.limitMinor > 0n ? Math.round((s * 100) / num(b.limitMinor)) : 0 }; }),
       note: 'Money in counts everything credited to your accounts except your own transfers. Spending counts completed payments you made, excluding moves between your own accounts.',
     };
+  }
+
+  /** A starting budget for each category: the average of the last three full months, plus 5%, rounded up to LKR 100. Informational; the customer decides. */
+  async suggestedBudgets(customerId: string, now = new Date()) {
+    const cur = monthLabel(now);
+    const totals = new Map<string, number>();
+    for (const by of [-1, -2, -3]) {
+      const b = bounds(shiftMonth(cur, by));
+      for (const [c, v] of (await this.spending(customerId, b.start, b.end)).byCat) totals.set(c, (totals.get(c) ?? 0) + v);
+    }
+    const items = [...totals.entries()].map(([category, sum]) => ({ category, averageMinor: Math.round(sum / 3), suggestedMinor: Math.ceil((sum / 3) * 1.05 / 10_000) * 10_000 })).sort((a, b) => b.averageMinor - a.averageMinor);
+    return { items, note: 'Based on your average spending over the last three full months. It is a starting point, not advice.' };
   }
 
   /** Month-by-month totals for charts (oldest first). */

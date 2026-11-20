@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,9 @@ import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_controller.dart';
 import '../../support/presentation/support_pages.dart' show ReceiptActions;
 import '../../../core/network/resilience.dart' show onlineProvider;
+import '../../../core/security/biometric_service.dart';
+import '../../../core/storage/prefs_store.dart';
+import '../../settings/settings_controller.dart';
 import '../data/payments_repository.dart';
 
 String two(int n) => n.toString().padLeft(2, '0');
@@ -150,6 +155,7 @@ class _PaymentReviewPageState extends ConsumerState<PaymentReviewPage> {
       case _Phase.done:
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           ReceiptCard(_payment!, fromLabel: from?.title),
+          if (_payment!.status == 'POSTED') ReceiptActions(paymentId: _payment!.id, canSaveRecipient: _payment!.kind == 'INTERNAL_TRANSFER' || _payment!.kind == 'INTERBANK_TRANSFER' || _payment!.kind == 'QR_PAYMENT'),
           const SizedBox(height: ZxSpace.md),
           ZxButton(label: 'Done', onPressed: () => context.go('/')),
         ]);
@@ -275,7 +281,7 @@ class ReceiptPage extends ConsumerWidget {
       body: ZxBackdrop(child: SafeArea(child: f.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(e is ApiFailure ? e.message : 'Something went wrong.'), TextButton(onPressed: () => ref.invalidate(_paymentProvider(id)), child: const Text('Retry'))])),
-        data: (p) => SingleChildScrollView(padding: const EdgeInsets.all(ZxSpace.md), child: Column(children: [ReceiptCard(p), if (p.status == 'POSTED') ReceiptActions(paymentId: p.id)])),
+        data: (p) => SingleChildScrollView(padding: const EdgeInsets.all(ZxSpace.md), child: Column(children: [ReceiptCard(p), if (p.status == 'POSTED') ReceiptActions(paymentId: p.id, canSaveRecipient: p.kind == 'INTERNAL_TRANSFER' || p.kind == 'INTERBANK_TRANSFER' || p.kind == 'QR_PAYMENT')])),
       ))),
     );
   }
@@ -286,16 +292,36 @@ final _paymentProvider = FutureProvider.autoDispose.family<Payment, String>((ref
 /// Asks for the app PIN in a bottom sheet. The PIN is verified by the bank, never by the app.
 Future<String?> askPin(BuildContext context) => showModalBottomSheet<String>(context: context, isScrollControlled: true, builder: (_) => const _PinSheet());
 
-class _PinSheet extends StatefulWidget {
+class _PinSheet extends ConsumerStatefulWidget {
   const _PinSheet();
   @override
-  State<_PinSheet> createState() => _PinSheetState();
+  ConsumerState<_PinSheet> createState() => _PinSheetState();
 }
 
-class _PinSheetState extends State<_PinSheet> {
+class _PinSheetState extends ConsumerState<_PinSheet> with SingleTickerProviderStateMixin {
   final _c = TextEditingController();
+  late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 360));
+  bool _bio = false;
+  bool _wrong = false;
+
   @override
-  void dispose() { _c.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    () async {
+      if (!ref.read(settingsProvider).biometricPay) return;
+      final ready = await ref.read(prefsStoreProvider).read(payPinKey) != null && await ref.read(biometricServiceProvider).available();
+      if (mounted && ready) setState(() => _bio = true);
+    }();
+  }
+
+  @override
+  void dispose() { _c.dispose(); _shake.dispose(); super.dispose(); }
+
+  Future<void> _useBiometrics() async {
+    if (!await ref.read(biometricServiceProvider).authenticate('Approve this payment')) return;
+    final pin = await ref.read(prefsStoreProvider).read(payPinKey);
+    if (pin != null && mounted) Navigator.of(context).pop(pin);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,12 +330,21 @@ class _PinSheetState extends State<_PinSheet> {
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text('Authorize with your PIN', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: ZxSpace.md),
-        TextField(controller: _c, autofocus: true, obscureText: true, keyboardType: TextInputType.number, maxLength: 6, decoration: const InputDecoration(labelText: 'App PIN', counterText: ''), onSubmitted: (_) => _done()),
+        AnimatedBuilder(
+          animation: _shake,
+          builder: (_, child) => Transform.translate(offset: Offset(ZxMotion.reduced(context) ? 0 : math.sin(_shake.value * math.pi * 6) * 10 * (1 - _shake.value), 0), child: child),
+          child: TextField(controller: _c, autofocus: true, obscureText: true, keyboardType: TextInputType.number, maxLength: 6, decoration: InputDecoration(labelText: 'App PIN', counterText: '', errorText: _wrong ? 'Enter your 4 or 6 digit PIN' : null), onChanged: (_) { if (_wrong) setState(() => _wrong = false); }, onSubmitted: (_) => _done()),
+        ),
         const SizedBox(height: ZxSpace.sm),
         ZxButton(label: 'Confirm', onPressed: _done),
+        if (_bio) TextButton.icon(onPressed: _useBiometrics, icon: const Icon(Icons.fingerprint), label: const Text('Use biometrics')),
       ]),
     );
   }
 
-  void _done() { if (RegExp(r'^(\d{4}|\d{6})$').hasMatch(_c.text)) Navigator.of(context).pop(_c.text); }
+  void _done() {
+    if (RegExp(r'^(\d{4}|\d{6})$').hasMatch(_c.text)) { Navigator.of(context).pop(_c.text); return; }
+    setState(() => _wrong = true);
+    _shake.forward(from: 0); // a short side-to-side shake (none when reduce-motion is on)
+  }
 }

@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/design_system/async_view.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../../core/design_system/widgets.dart';
+import '../../../core/utils/money.dart';
 import '../../accounts/data/accounts_repository.dart';
 import '../../../core/platform/platform_services.dart';
+import '../../payments/data/payments_repository.dart' show paymentsRepositoryProvider;
 import '../data/file_sharer.dart';
 import '../data/support_repository.dart';
 
@@ -82,14 +84,28 @@ class _StatementsPageState extends ConsumerState<StatementsPage> {
 
 /// Shown under a receipt: share the bank's PDF receipt, or report a problem with the payment.
 class ReceiptActions extends ConsumerStatefulWidget {
-  const ReceiptActions({super.key, required this.paymentId});
+  const ReceiptActions({super.key, required this.paymentId, this.canSaveRecipient = false});
   final String paymentId;
+  final bool canSaveRecipient;
   @override
   ConsumerState<ReceiptActions> createState() => _ReceiptActionsState();
 }
 
 class _ReceiptActionsState extends ConsumerState<ReceiptActions> {
   bool _busy = false;
+  bool _saved = false;
+
+  Future<void> _saveRecipient() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(paymentsRepositoryProvider).saveRecipient(widget.paymentId);
+      if (mounted) { setState(() => _saved = true); _toast(context, 'Recipient saved.'); }
+    } catch (e) {
+      if (mounted) _toast(context, errorText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _share() async {
     setState(() => _busy = true);
@@ -107,6 +123,7 @@ class _ReceiptActionsState extends ConsumerState<ReceiptActions> {
         padding: const EdgeInsets.only(top: ZxSpace.md),
         child: Column(children: [
           OutlinedButton.icon(onPressed: _busy ? null : _share, icon: const Icon(Icons.ios_share), label: const Text('Share receipt (PDF)')),
+          if (widget.canSaveRecipient && !_saved) OutlinedButton.icon(onPressed: _busy ? null : _saveRecipient, icon: const Icon(Icons.person_add_alt), label: const Text('Save recipient')),
           TextButton.icon(onPressed: () => context.push('/support/report/${widget.paymentId}'), icon: const Icon(Icons.flag_outlined), label: const Text('Report a problem')),
         ]),
       );
@@ -166,9 +183,28 @@ class _ReportProblemPageState extends ConsumerState<ReportProblemPage> {
 
 class DisputesPage extends ConsumerWidget {
   const DisputesPage({super.key});
+  Future<void> _choose(BuildContext context, WidgetRef ref) async {
+    List<TxnItem> items;
+    try {
+      items = (await ref.read(supportRepositoryProvider).transactions(const TxnFilter(direction: 'OUT'))).items.where((t) => t.paymentId != null).toList();
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+      return;
+    }
+    if (!context.mounted) return;
+    final picked = await showModalBottomSheet<String>(context: context, isScrollControlled: true, builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, padding: const EdgeInsets.all(ZxSpace.md), children: [
+      Text('Which payment is the problem?', style: Theme.of(ctx).textTheme.titleMedium),
+      const SizedBox(height: ZxSpace.sm),
+      if (items.isEmpty) const Padding(padding: EdgeInsets.all(ZxSpace.md), child: Text('You have no payments to report yet.')),
+      for (final t in items.take(30)) ListTile(title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text('${t.postedAt.toLocal().toString().substring(0, 10)} · ${t.accountLabel}'), trailing: Text(formatMinor(t.amountMinor.abs(), currency: t.currency)), onTap: () => Navigator.pop(ctx, t.paymentId)),
+    ])));
+    if (picked != null && context.mounted) context.push('/support/report/$picked');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => ServicePage(
         title: 'Problem reports',
+        fab: FloatingActionButton.extended(onPressed: () => _choose(context, ref), icon: const Icon(Icons.flag_outlined), label: const Text('Report a payment')),
         body: AsyncView<List<Dispute>>(
           value: ref.watch(disputesProvider),
           onRetry: () => ref.invalidate(disputesProvider),

@@ -144,8 +144,8 @@ class AuthRepository {
     return me();
   }
 
-  Future<Me> register({required String fullName, required String username, required String email, required String password}) async {
-    final r = await _send(() => _dio.post('/api/v1/auth/register', data: {'fullName': fullName, 'username': username, 'email': email, 'password': password}));
+  Future<Me> register({required String fullName, required String username, required String email, required String password, String? phone}) async {
+    final r = await _send(() => _dio.post('/api/v1/auth/register', data: {'fullName': fullName, 'username': username, 'email': email, 'password': password, 'phone': ?phone}));
     await _adopt(r.data!);
     return me();
   }
@@ -290,8 +290,19 @@ class AuthRepository {
   Future<void> requestPasswordReset(String identifier) =>
       _send(() => _dio.post('/api/v1/auth/password-reset/request', data: {'identifier': identifier}));
 
-  Future<void> confirmPasswordReset(String token, String newPassword) =>
-      _send(() => _dio.post('/api/v1/auth/password-reset/confirm', data: {'token': token, 'newPassword': newPassword}));
+  Future<void> confirmPasswordReset(String identifier, String code, String newPassword) =>
+      _send(() => _dio.post('/api/v1/auth/password-reset/confirm', data: {'identifier': identifier, 'code': code, 'newPassword': newPassword}));
+
+  /// Development helper (404 anywhere else): nothing sends email locally, so the screen can show the code.
+  Future<String?> devResetCode(String identifier) async {
+    try {
+      final r = await _dio.get<Map<String, dynamic>>('/api/v1/dev/reset-code', queryParameters: {'identifier': identifier});
+      if (r.statusCode != 200) return null;
+      return r.data?['code'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> logout() async {
     try {

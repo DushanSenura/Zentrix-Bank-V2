@@ -14,6 +14,7 @@ Map<String, dynamic>? base(String p) {
   if (p == '/api/v1/accounts') return {'items': [acct('a1', 'Main savings', 5000000)], 'totalBalanceMinor': 5000000};
   if (p == '/api/v1/notifications') return {'unread': 0, 'items': []};
   if (p == '/api/v1/transactions') return {'items': [], 'nextCursor': null}; // the home screen's recent-transactions list
+  if (p == '/api/v1/analytics/summary') return {}; // the home screen's month overview (unparseable on purpose: it just stays hidden)
   return null;
 }
 

@@ -68,6 +68,39 @@ class FakeApi implements AuthRepository {
     return DownloadedFile(Uint8List.fromList([0x25, 0x50, 0x44, 0x46]), 'doc.pdf', 'application/pdf');
   }
 
+  @override
+  Future<Me> register({required String fullName, required String username, required String email, required String password, String? phone}) async {
+    requests.add(Req('CALL', 'register', null, {'fullName': fullName, 'username': username, 'email': email, 'phone': phone}, null));
+    return active;
+  }
+
+  @override
+  Future<Me> me() async => active;
+
+  @override
+  Future<void> submitKyc({required String nationalId, required String dateOfBirth, required String line1, required String city, required String postalCode}) async {
+    requests.add(Req('CALL', 'submitKyc', null, {'nationalId': nationalId, 'dateOfBirth': dateOfBirth, 'line1': line1, 'city': city, 'postalCode': postalCode}, null));
+  }
+
+  @override
+  Future<void> verifyPin(String pin) async {
+    requests.add(Req('CALL', 'verifyPin', null, {'pin': pin}, null));
+  }
+
+  @override
+  Future<void> requestPasswordReset(String identifier) async {
+    requests.add(Req('CALL', 'requestPasswordReset', null, {'identifier': identifier}, null));
+  }
+
+  @override
+  Future<void> confirmPasswordReset(String identifier, String code, String newPassword) async {
+    requests.add(Req('CALL', 'confirmPasswordReset', null, {'identifier': identifier, 'code': code}, null));
+  }
+
+  String? devCode = '123456';
+  @override
+  Future<String?> devResetCode(String identifier) async => devCode;
+
   List<DemoAccount> demo = const [];
   @override
   Future<List<DemoAccount>> demoAccounts() async => demo;

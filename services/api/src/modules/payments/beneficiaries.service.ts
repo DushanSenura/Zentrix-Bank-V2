@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../../common/audit.service';
+import { queueNotifications } from '../../common/notify';
 import { PrismaService } from '../../common/prisma.service';
 import { masked } from '../accounts/accounts.service';
 import { bankName, SIMULATED_BANKS } from './catalog';
@@ -28,6 +29,20 @@ export class BeneficiariesService {
     return { items: rows.map((r) => this.view(r)) };
   }
 
+  /** "Save this recipient" from a finished payment. The full account number comes from the stored payment, never from the client. */
+  async saveFromPayment(customerId: string, paymentId: string, nickname?: string) {
+    const pay = await this.prisma.paymentInstruction.findUnique({ where: { id: paymentId } });
+    if (!pay || pay.initiatorId !== customerId) throw new NotFoundException({ code: 'not_found', message: 'Payment not found' });
+    const d = (pay.destination ?? {}) as Record<string, unknown>;
+    if (pay.status !== 'POSTED') throw new ConflictException({ code: 'not_saveable', message: 'Only a completed payment can be saved as a recipient' });
+    if (d.settle === 'INTERBANK') return this.add(customerId, { bankCode: d.bankCode as string, accountNumber: d.accountNumber as string, holderName: d.name as string, nickname });
+    if (d.settle === 'INTERNAL' && typeof d.toAccountId === 'string') {
+      const to = await this.prisma.account.findUnique({ where: { id: d.toAccountId } });
+      if (to) return this.add(customerId, { bankCode: 'ZENTRIX', accountNumber: to.accountNumber, nickname });
+    }
+    throw new ConflictException({ code: 'not_saveable', message: 'This payment has no recipient to save' });
+  }
+
   /** Resolves the holder name SERVER-side for Zentrix accounts; the client cannot assert who owns an account. */
   async add(customerId: string, b: NewBeneficiary) {
     let holderName: string;
@@ -48,6 +63,7 @@ export class BeneficiariesService {
     try {
       const row = await this.prisma.beneficiary.create({ data: { customerId, bankCode: b.bankCode, accountNumber: b.accountNumber, holderName, nickname: b.nickname } });
       await this.audit.record({ actorId: customerId, actorType: 'CUSTOMER', action: 'beneficiary.added', subjectType: 'Beneficiary', subjectId: row.id });
+      await queueNotifications(this.prisma, 'beneficiary.added', [{ userId: customerId, category: 'ACCOUNT', title: 'New recipient saved', body: `${holderName} was added to your saved recipients.` }]);
       return this.view(row);
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {

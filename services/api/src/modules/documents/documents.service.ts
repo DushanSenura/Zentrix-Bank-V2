@@ -28,9 +28,11 @@ export interface SearchQuery { accountId?: string; category?: string; q?: string
 
 /** Spending category as a database filter, mirroring paymentCategory(): bills by their category, then Transfers and Loan repayments. */
 function categoryFilter(category: string): Prisma.PaymentInstructionWhereInput {
-  if (category === 'Transfers') return { kind: { in: ['INTERNAL_TRANSFER', 'INTERBANK_TRANSFER', 'QR_PAYMENT'] } };
-  if (category === 'Loan repayments') return { kind: 'LOAN_INSTALMENT' };
-  return { kind: 'BILL_PAYMENT', destination: { path: ['category'], equals: category } };
+  const byKind: Prisma.PaymentInstructionWhereInput =
+    category === 'Transfers' ? { kind: { in: ['INTERNAL_TRANSFER', 'INTERBANK_TRANSFER', 'QR_PAYMENT'] } }
+    : category === 'Loan repayments' ? { kind: 'LOAN_INSTALMENT' }
+    : { kind: 'BILL_PAYMENT', destination: { path: ['category'], equals: category } };
+  return { OR: [{ category }, { AND: [{ category: null }, byKind] }] }; // the customer's own label wins over the default
 }
 
 @Injectable()
@@ -96,7 +98,7 @@ export class DocumentsService {
       id: p.id, reference: p.journal.reference, kind: p.journal.kind, description: p.journal.description, status: reversed ? 'REVERSED' : p.journal.status,
       amountMinor: num(p.direction === 'CREDIT' ? p.amountMinor : -p.amountMinor), currency: p.currency, postedAt: p.createdAt,
       account: { id: acc.id, label: acc.nickname ?? masked(acc.accountNumber), numberMasked: masked(acc.accountNumber) },
-      category: pay && mine ? paymentCategory(pay.kind, pay.destination) : null,
+      category: pay && mine ? paymentCategory(pay.kind, pay.destination, pay.category) : null,
       counterparty: mine ? { name: (dest.name as string | undefined) ?? null, bank: (dest.bank as string | undefined) ?? null, accountMasked: (dest.accountMasked as string | undefined) ?? null } : null,
       note: mine ? pay!.note : null, feeMinor: mine ? num(pay!.feeMinor) : 0,
       paymentId: pay ? pay.id : null,

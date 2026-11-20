@@ -6,7 +6,9 @@ import '../../../core/design_system/async_view.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../../core/design_system/widgets.dart';
 import '../../../core/utils/money.dart';
+import '../../../core/utils/no_retry.dart';
 import '../../accounts/data/accounts_repository.dart';
+import '../../authentication/data/auth_repository.dart' show authRepositoryProvider;
 import '../../payments/data/payments_repository.dart' show DraftRequest;
 import '../data/support_repository.dart';
 import 'support_pages.dart' show ReceiptActions;
@@ -23,6 +25,37 @@ String _heading(DateTime d) {
   final that = DateTime(l.year, l.month, l.day);
   final diff = today.difference(that).inDays;
   return diff == 0 ? 'Today' : diff == 1 ? 'Yesterday' : _day(d);
+}
+
+/// Payments that are not completed: waiting for the bank or their date, or failed. Completed ones are in the list below.
+final _unfinishedProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(authRepositoryProvider);
+  final results = await Future.wait([api.getJson('/api/v1/payments', query: {'status': 'pending'}), api.getJson('/api/v1/payments', query: {'status': 'failed'})]);
+  return [for (final r in results) ...(r['items'] as List).cast<Map<String, dynamic>>()];
+}, retry: noRetry);
+
+class _PendingFailed extends ConsumerWidget {
+  const _PendingFailed();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = ref.watch(_unfinishedProvider).asData?.value ?? const <Map<String, dynamic>>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: ZxSpace.sm),
+      child: ExpansionTile(
+        title: Text('Pending and failed payments (${rows.length})'),
+        children: [
+          for (final p in rows)
+            ListTile(
+              title: Text('${(p['recipient'] as Map<String, dynamic>)['name']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: Text(p['status'] == 'FAILED' ? 'Failed${p['failureMessage'] == null ? '' : ': ${p['failureMessage']}'}' : 'Pending'),
+              trailing: Text(formatMinor((p['amountMinor'] as num).toInt()), style: const TextStyle(fontWeight: FontWeight.w600)),
+              onTap: () => context.push('/receipts/${p['id']}'),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 // ═════════════════════════ transaction history ═════════════════════════
@@ -93,6 +126,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     }
     if (_cursor != null) children.add(Padding(padding: const EdgeInsets.all(ZxSpace.md), child: OutlinedButton(onPressed: _more ? null : () => _load(append: true), child: Text(_more ? 'Loading…' : 'Load more'))));
 
+    children.insert(0, const _PendingFailed());
     return ServicePage(
       navIndex: 3,
       title: 'Transaction history',
@@ -117,6 +151,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
             if (_filter.advancedCount > 0)
               Align(alignment: Alignment.centerLeft, child: Wrap(spacing: ZxSpace.xs, children: [
                 if (_filter.category != null) InputChip(label: Text(_filter.category!), onDeleted: () => _apply(_filter.copyWith(clearCategory: true))),
+                if (_filter.kind != null) InputChip(label: Text(transactionTypes.where((t) => t.$2 == _filter.kind).map((t) => t.$1).firstOrNull ?? 'Type'), onDeleted: () => _apply(_filter.copyWith(clearKind: true))),
                 if (_filter.from != null || _filter.to != null) InputChip(label: Text('${_filter.from != null ? _day(_filter.from!) : '…'} to ${_filter.to != null ? _day(_filter.to!) : '…'}'), onDeleted: () => _apply(_filter.copyWith(clearDates: true))),
                 if (_filter.minMinor != null || _filter.maxMinor != null) InputChip(label: Text('${_filter.minMinor != null ? formatMinor(_filter.minMinor!) : 'any'} – ${_filter.maxMinor != null ? formatMinor(_filter.maxMinor!) : 'any'}'), onDeleted: () => _apply(_filter.copyWith(clearAmounts: true))),
               ])),
@@ -128,7 +163,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               : _error != null
                   ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!), TextButton(onPressed: _load, child: const Text('Try again'))]))
                   : _items.isEmpty
-                      ? const Center(child: Text('No transactions match.'))
+                      ? ListView(padding: const EdgeInsets.all(ZxSpace.md), children: const [_PendingFailed(), Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Center(child: Text('No transactions match.')))])
                       : ListView(padding: const EdgeInsets.all(ZxSpace.md), children: children),
         ),
       ]),
@@ -145,6 +180,7 @@ class _FilterSheet extends StatefulWidget {
 
 class _FilterSheetState extends State<_FilterSheet> {
   late String? _category = widget.initial.category;
+  late String? _kind = widget.initial.kind;
   late DateTime? _from = widget.initial.from;
   late DateTime? _to = widget.initial.to;
   late final _min = TextEditingController(text: widget.initial.minMinor == null ? '' : (widget.initial.minMinor! / 100).toStringAsFixed(2));
@@ -169,8 +205,8 @@ class _FilterSheetState extends State<_FilterSheet> {
     final hi = _max.text.trim().isEmpty ? null : parseMajorToMinor(_max.text);
     if ((_min.text.trim().isNotEmpty && lo == null) || (_max.text.trim().isNotEmpty && hi == null)) return setState(() => _error = 'Enter amounts like 1500.00.');
     if (lo != null && hi != null && lo > hi) return setState(() => _error = 'The smallest amount must not be more than the largest.');
-    var f = widget.initial.copyWith(clearCategory: true, clearDates: true, clearAmounts: true);
-    f = f.copyWith(category: _category, from: _from, to: _to, minMinor: lo, maxMinor: hi);
+    var f = widget.initial.copyWith(clearCategory: true, clearKind: true, clearDates: true, clearAmounts: true);
+    f = f.copyWith(category: _category, kind: _kind, from: _from, to: _to, minMinor: lo, maxMinor: hi);
     Navigator.pop(context, f);
   }
 
@@ -187,6 +223,12 @@ class _FilterSheetState extends State<_FilterSheet> {
               onChanged: (v) => setState(() => _category = v),
             ),
             const SizedBox(height: ZxSpace.md),
+            DropdownButtonFormField<String?>(
+              initialValue: _kind, isExpanded: true, decoration: const InputDecoration(labelText: 'Type'),
+              items: [const DropdownMenuItem(value: null, child: Text('Any type')), for (final (label, code) in transactionTypes) DropdownMenuItem(value: code, child: Text(label))],
+              onChanged: (v) => setState(() => _kind = v),
+            ),
+            const SizedBox(height: ZxSpace.md),
             OutlinedButton.icon(onPressed: _pickRange, icon: const Icon(Icons.date_range), label: Text(_from == null ? 'Any date' : '${_day(_from!)} to ${_day(_to ?? _from!)}')),
             const SizedBox(height: ZxSpace.md),
             Row(children: [
@@ -197,7 +239,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             if (_error != null) ZxErrorText(_error!),
             const SizedBox(height: ZxSpace.md),
             Row(children: [
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, widget.initial.copyWith(clearCategory: true, clearDates: true, clearAmounts: true)), child: const Text('Clear'))),
+              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, widget.initial.copyWith(clearCategory: true, clearKind: true, clearDates: true, clearAmounts: true)), child: const Text('Clear'))),
               const SizedBox(width: ZxSpace.sm),
               Expanded(child: FilledButton(onPressed: _apply, child: const Text('Apply'))),
             ]),

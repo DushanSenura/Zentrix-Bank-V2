@@ -23,6 +23,7 @@ export class AnalyticsController {
 
   @Get('analytics/summary') summary(@CurrentUser() u: AuthUser, @Query(new ZodPipe(monthQuery)) q: z.infer<typeof monthQuery>) { return this.analytics.summary(u.id, q.month); }
   @Get('analytics/trend') trend(@CurrentUser() u: AuthUser, @Query(new ZodPipe(trendQuery)) q: z.infer<typeof trendQuery>) { return this.analytics.trend(u.id, q.months); }
+  @Get('analytics/budget-suggestions') suggestions(@CurrentUser() u: AuthUser) { return this.analytics.suggestedBudgets(u.id); }
   @Get('analytics/recurring') recurring(@CurrentUser() u: AuthUser) { return this.analytics.recurring(u.id); }
 
   @Get('ai/status') status() { return this.ai.status(); }

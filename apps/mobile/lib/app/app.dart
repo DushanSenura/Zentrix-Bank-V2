@@ -12,6 +12,8 @@ import '../features/authentication/presentation/lock.dart';
 import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
 import '../features/fx/fx_pages.dart';
+import '../features/accounts/data/accounts_repository.dart' show accountListProvider;
+import '../features/insights/data/insights_repository.dart' show monthSummaryProvider;
 import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
 import '../features/search/search_page.dart';
@@ -137,7 +139,7 @@ class ZentrixApp extends ConsumerWidget {
         final mq = MediaQuery.of(context);
         return MediaQuery(
           data: mq.copyWith(disableAnimations: mq.disableAnimations || settings.reduceMotion),
-          child: MaintenanceGate(recheck: () => ref.read(authRepositoryProvider).maintenanceStatus(), child: OfflineBanner(child: AppLockGate(child: child ?? const SizedBox.shrink()))),
+          child: MaintenanceGate(recheck: () => ref.read(authRepositoryProvider).maintenanceStatus(), child: OfflineBanner(onReconnect: () { ref.invalidate(accountListProvider); ref.invalidate(recentTransactionsProvider); ref.invalidate(notificationsProvider); ref.invalidate(unreadCountProvider); ref.invalidate(monthSummaryProvider); }, child: AppLockGate(child: child ?? const SizedBox.shrink()))),
         );
       },
     );

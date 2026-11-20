@@ -2,7 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Small key/value store for NON-secret device preferences (still kept in the secure store: it is already
-/// available and avoids another plugin). Nothing sensitive such as passwords or PINs is ever written here.
+/// available and avoids another plugin). Passwords are never written here. The ONE exception is the app PIN, kept only if the
+/// customer opts in to approving payments with biometrics (see [payPinKey]); it stays in the OS secure store, is removed on
+/// sign-out, PIN change and when the option is turned off, and the bank still verifies it on every payment.
+/// Key of the opt-in biometric payment PIN. Do not use for anything else.
+const payPinKey = 'payPin';
+
 abstract class PrefsStore {
   Future<String?> read(String key);
   Future<void> write(String key, String value);

@@ -20,7 +20,7 @@ const registerSchema = z.object({
 const loginSchema = z.object({ identifier: z.string().trim().min(1).max(200), password: z.string().min(1).max(128), mfaCode: z.string().length(6).optional(), recoveryCode: z.string().min(8).max(14).optional() });
 const refreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
 const resetRequestSchema = z.object({ identifier: z.string().trim().min(1).max(200) });
-const resetConfirmSchema = z.object({ token: z.string().min(20).max(200), newPassword: z.string().max(128) });
+const resetConfirmSchema = z.object({ identifier: z.string().min(3).max(254), code: z.string().regex(/^\d{6}$/), newPassword: z.string().max(128) });
 
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
@@ -55,6 +55,6 @@ export class AuthController {
 
   @Public() @Throttle(strict) @HttpCode(204) @Post('password-reset/confirm')
   async resetConfirm(@Body(new ZodPipe(resetConfirmSchema)) b: z.infer<typeof resetConfirmSchema>) {
-    await this.auth.confirmPasswordReset(b.token, b.newPassword);
+    await this.auth.confirmPasswordReset(b.identifier, b.code, b.newPassword);
   }
 }

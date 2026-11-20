@@ -43,6 +43,9 @@ export class CardsController {
   @Put('cards/:id/controls')
   controls(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(controlsSchema)) b: z.infer<typeof controlsSchema>) { return this.cards.setControls(u.id, id, b); }
 
+  @Post('cards/:id/block') @HttpCode(200)
+  block(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(lostSchema)) b: z.infer<typeof lostSchema>) { return this.cards.blockPermanently(u.id, id, b.pin); }
+
   @Post('cards/:id/report-lost') @HttpCode(200)
   lost(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(lostSchema)) b: z.infer<typeof lostSchema>) { return this.cards.reportLost(u.id, id, b.pin); }
 

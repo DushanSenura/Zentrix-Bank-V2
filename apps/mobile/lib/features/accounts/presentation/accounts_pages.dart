@@ -11,7 +11,9 @@ import '../../../core/utils/money.dart';
 import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_controller.dart';
 import '../../authentication/presentation/auth_pages.dart';
+import '../../insights/data/insights_repository.dart' show monthSummaryProvider;
 import '../../settings/settings_controller.dart';
+import '../../payments/presentation/payment_flow.dart' show askPin;
 import '../../payments/presentation/payments_pages.dart';
 import '../data/accounts_repository.dart';
 
@@ -82,6 +84,7 @@ class AccountsHome extends ConsumerWidget {
                     AmountText(list.totalBalanceMinor, animate: true, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontFeatures: const [FontFeature.tabularFigures()])),
                   ])),
                   const SizedBox(height: ZxSpace.md),
+                  if (list.items.isNotEmpty) const _MonthOverview(),
                   if (list.items.isNotEmpty) const _QuickActions(),
                   if (list.items.isNotEmpty) ...[
                     const SizedBox(height: ZxSpace.md),
@@ -120,6 +123,31 @@ class AccountsHome extends ConsumerWidget {
 final recentTransactionsProvider = FutureProvider.autoDispose<List<TxnItem>>((ref) async => (await ref.watch(supportRepositoryProvider).transactions(const TxnFilter())).items.take(5).toList(), retry: noRetry);
 
 /// The things people do most, one tap from home.
+/// "This month" at a glance: money in, spent and what is left, from the bank's own analytics. Hidden if it cannot be loaded.
+class _MonthOverview extends ConsumerWidget {
+  const _MonthOverview();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hide = ref.watch(settingsProvider.select((s) => s.hideBalances));
+    return ref.watch(monthSummaryProvider(null)).maybeWhen(
+          data: (s) => Padding(
+            padding: const EdgeInsets.only(bottom: ZxSpace.md),
+            child: GlassCard(blur: false, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('This month', style: TextStyle(color: context.zx.textMuted)),
+              const SizedBox(height: ZxSpace.xs),
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Money in'), Text(hide ? hiddenAmount : formatMinor(s.moneyInMinor), style: TextStyle(fontWeight: FontWeight.w700, color: context.zx.success))])),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Spent'), Text(hide ? hiddenAmount : formatMinor(s.spentMinor), style: const TextStyle(fontWeight: FontWeight.w700))])),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Net'), Text(hide ? hiddenAmount : formatMinor(s.netMinor, signed: true), style: const TextStyle(fontWeight: FontWeight.w700))])),
+              ]),
+              TextButton(onPressed: () => context.push('/insights'), child: const Text('See spending insights')),
+            ])),
+          ),
+          orElse: () => const SizedBox.shrink(),
+        );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
   @override
@@ -268,6 +296,19 @@ class _AccountDetailPageState extends ConsumerState<AccountDetailPage> {
                   if (a.interestRateBps > 0) Text('Interest ${(a.interestRateBps / 100).toStringAsFixed(2)}% p.a. (indicative)', style: TextStyle(color: context.zx.textMuted)),
                   if (_statusExplain[a.status] != null) ...[const SizedBox(height: ZxSpace.sm), Text(_statusExplain[a.status]!, style: TextStyle(color: context.zx.warning, fontWeight: FontWeight.w600))],
                 ])),
+                const SizedBox(height: ZxSpace.sm),
+                ref.watch(monthlySummaryProvider(widget.id)).maybeWhen(
+                  data: (m) => GlassCard(blur: false, child: Row(children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Money in (${m.month})', style: TextStyle(color: context.zx.textMuted)), Text(formatMinor(m.inMinor, currency: a.currency), style: TextStyle(fontWeight: FontWeight.w700, color: context.zx.success))])),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Money out', style: TextStyle(color: context.zx.textMuted)), Text(formatMinor(m.outMinor, currency: a.currency), style: const TextStyle(fontWeight: FontWeight.w700))])),
+                  ])),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+                const SizedBox(height: ZxSpace.sm),
+                Wrap(spacing: ZxSpace.sm, children: [
+                  if (a.status == 'ACTIVE' && a.currency == 'LKR') OutlinedButton.icon(onPressed: () => context.push('/payments/transfer', extra: TransferArgs(sourceAccountId: a.id)), icon: const Icon(Icons.north_east), label: const Text('Transfer from this account')),
+                  OutlinedButton.icon(onPressed: () => context.push('/statements'), icon: const Icon(Icons.description_outlined), label: const Text('Statements')),
+                ]),
                 const SizedBox(height: ZxSpace.md),
                 Text('Recent activity', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: ZxSpace.sm),
@@ -331,10 +372,11 @@ class OpenAccountPage extends ConsumerStatefulWidget {
 
 class _OpenAccountPageState extends ConsumerState<OpenAccountPage> with FormRunner {
   String? _code;
-  final _nick = TextEditingController();
+  final _nick = TextEditingController(), _deposit = TextEditingController();
   bool _sent = false;
+  String? _fundFrom; // null: pay the opening deposit in cash at a branch
   @override
-  void dispose() { _nick.dispose(); super.dispose(); }
+  void dispose() { _nick.dispose(); _deposit.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -365,12 +407,38 @@ class _OpenAccountPageState extends ConsumerState<OpenAccountPage> with FormRunn
           ),
           const SizedBox(height: ZxSpace.sm),
           TextField(controller: _nick, maxLength: 40, decoration: const InputDecoration(labelText: 'Nickname (optional)')),
+          ...(() {
+            final product = list.where((p) => p.code == _code).firstOrNull;
+            final mine = (ref.watch(accountListProvider).asData?.value.items ?? const []).where((a) => a.status == 'ACTIVE' && a.currency == 'LKR').toList();
+            if (product == null || product.minOpeningMinor == 0 || mine.isEmpty) return <Widget>[];
+            return <Widget>[
+              DropdownButtonFormField<String?>(initialValue: _fundFrom, isExpanded: true, decoration: const InputDecoration(labelText: 'Opening deposit'), items: [const DropdownMenuItem<String?>(value: null, child: Text('I will pay at a branch')), for (final a in mine) DropdownMenuItem<String?>(value: a.id, child: Text('Pay from ${a.title} · ${a.maskedNumber}', overflow: TextOverflow.ellipsis))], onChanged: (v) => setState(() => _fundFrom = v)),
+              if (_fundFrom != null) TextField(controller: _deposit, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Deposit amount (LKR), at least ${formatMinor(product.minOpeningMinor)}')),
+            ];
+          })(),
           ZxErrorText(error),
-          ZxButton(label: 'Submit application', loading: busy, onPressed: _code == null ? null : () => run(() async {
+          ZxButton(label: 'Submit application', loading: busy, onPressed: _code == null ? null : () async {
+            // The PIN is asked for before anything is sent (and before the button shows its spinner).
+            int? minor;
+            String? pin;
+            if (_fundFrom != null) {
+              minor = parseMajorToMinor(_deposit.text);
+              if (minor == null) { setState(() => error = 'Enter the deposit amount, like 5000.00.'); return; }
+              pin = await askPin(context);
+              if (pin == null) return;
+            }
+            await run(() async {
+            if (_fundFrom != null) {
+              await ref.read(accountsRepositoryProvider).apply(_code!, _nick.text.trim(), fundingAccountId: _fundFrom, fundingAmountMinor: minor, pin: pin);
+              ref.invalidate(applicationsProvider);
+              if (mounted) setState(() => _sent = true);
+              return;
+            }
             await ref.read(accountsRepositoryProvider).apply(_code!, _nick.text.trim());
             ref.invalidate(applicationsProvider);
             if (mounted) setState(() => _sent = true);
-          })),
+            });
+          }),
         ]),
       ),
     ]);

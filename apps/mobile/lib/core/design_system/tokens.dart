@@ -84,6 +84,8 @@ class ZxMotion {
   static const large = Duration(milliseconds: 450);
   static const curve = Curves.easeOutCubic;
 
+  static bool reduced(BuildContext context) => MediaQuery.of(context).disableAnimations;
+
   static Duration scaled(BuildContext context, Duration d) =>
       MediaQuery.of(context).disableAnimations ? Duration.zero : d;
 }

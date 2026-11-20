@@ -59,12 +59,16 @@ class Payment {
 
 /// Everything needed to create a draft. The [key] is generated ONCE per draft so a resend after a dropped
 /// connection reuses it and the bank returns the same draft instead of creating a second payment.
+/// Labels a customer can put on a payment (they feed insights and budgets).
+const paymentCategories = ['Food', 'Shopping', 'Transport', 'Bills', 'Entertainment', 'Health', 'Education', 'Other'];
+
 class DraftRequest {
-  DraftRequest({required this.sourceAccountId, required this.destination, required this.amountMinor, this.note, this.scheduledFor, this.frequency, String? key}) : key = key ?? newIdempotencyKey();
+  DraftRequest({required this.sourceAccountId, required this.destination, required this.amountMinor, this.note, this.category, this.scheduledFor, this.frequency, String? key}) : key = key ?? newIdempotencyKey();
   final String sourceAccountId;
   final Map<String, dynamic> destination;
   final int amountMinor;
   final String? note;
+  final String? category; // Food, Shopping, ... (optional label used by insights and budgets)
   final DateTime? scheduledFor; // one-time scheduled date, or the first run for a repeating payment
   final String? frequency; // WEEKLY | MONTHLY => standing instruction instead of a one-off payment
   final String key;
@@ -74,6 +78,7 @@ class DraftRequest {
         'destination': destination,
         'amountMinor': amountMinor,
         if (note != null && note!.isNotEmpty) 'note': note,
+        if (category != null) 'category': category,
         if (scheduledFor != null && frequency == null) 'scheduledFor': scheduledFor!.toUtc().toIso8601String(),
       };
 }
@@ -160,6 +165,12 @@ class PaymentsRepository {
   Future<Payment> get(String id) async => Payment.fromJson(await _api.getJson('/api/v1/payments/$id'));
   Future<Payment> cancel(String id) async => Payment.fromJson(await _api.postJson('/api/v1/payments/$id/cancel', {}));
 
+  /// Past runs of repeating payments: completed and failed ones.
+  Future<List<Payment>> scheduledHistory() async {
+    final d = await _api.getJson('/api/v1/payments', query: {'source': 'scheduled'});
+    return [for (final p in (d['items'] as List).cast<Map<String, dynamic>>()) Payment.fromJson(p)].where((p) => p.status == 'POSTED' || p.status == 'FAILED').toList();
+  }
+
   Future<List<Payment>> scheduled() async {
     final d = await _api.getJson('/api/v1/payments', query: {'scheduled': 'true'});
     return [for (final p in (d['items'] as List).cast<Map<String, dynamic>>()) Payment.fromJson(p)];
@@ -219,12 +230,14 @@ class PaymentsRepository {
   }
 
   Future<void> markAllRead() => _api.postJson('/api/v1/notifications/read-all', {});
+  Future<void> saveRecipient(String paymentId) => _api.postJson('/api/v1/payments/$paymentId/save-recipient', {});
   Future<void> markRead(String id) => _api.postJson('/api/v1/notifications/$id/read', {});
 }
 
 final paymentsRepositoryProvider = Provider<PaymentsRepository>((ref) => PaymentsRepository(ref.watch(authRepositoryProvider)));
 final beneficiariesProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).beneficiaries(), retry: noRetry);
 final catalogProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).catalog(), retry: noRetry);
+final scheduledHistoryProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).scheduledHistory(), retry: noRetry);
 final scheduledProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).scheduled(), retry: noRetry);
 final recurringProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).recurring(), retry: noRetry);
 final notificationsProvider = FutureProvider.autoDispose((ref) => ref.watch(paymentsRepositoryProvider).notifications(), retry: noRetry);

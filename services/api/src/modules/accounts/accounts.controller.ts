@@ -6,13 +6,17 @@ import { CurrentUser, CustomerOnly, StaffWith, type AuthUser } from '../auth/aut
 import { LedgerService } from '../ledger/ledger.service';
 import { AccountsService } from './accounts.service';
 
-const applySchema = z.object({ productCode: z.string().trim().min(2).max(40), nickname: z.string().trim().max(40).optional() });
+const applySchema = z.object({
+  productCode: z.string().trim().min(2).max(40), nickname: z.string().trim().max(40).optional(),
+  fundingAccountId: z.string().uuid().optional(), fundingAmountMinor: z.number().int().min(100).max(Number.MAX_SAFE_INTEGER).optional(), pin: z.string().regex(/^(\d{4}|\d{6})$/).optional(),
+}).refine((v) => (v.fundingAccountId === undefined) === (v.fundingAmountMinor === undefined) && (v.fundingAccountId === undefined || v.pin !== undefined), { message: 'Choose the account, the amount and enter your PIN together' });
 const decisionSchema = z.object({
   decision: z.enum(['APPROVE', 'REJECT']),
   reason: z.string().trim().max(500).optional(),
   openingDepositMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
 });
 const statusSchema = z.object({ status: z.enum(['ACTIVE', 'FROZEN', 'SUSPENDED', 'CLOSED']), reasonCode: z.string().trim().min(3).max(100) });
+const monthSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional() });
 const pageSchema = z.object({ limit: z.coerce.number().int().min(1).max(100).default(25), cursor: z.string().max(200).optional() });
 
 /** Customer endpoints. Active (KYC-approved) customers only. */
@@ -25,6 +29,9 @@ export class AccountsController {
   @Get('accounts') list(@CurrentUser() u: AuthUser) { return this.accounts.list(u.id); }
   @Get('accounts/:id') detail(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) { return this.accounts.detail(u.id, id); }
 
+  @Get('accounts/:id/monthly-summary')
+  monthly(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Query(new ZodPipe(monthSchema)) q: z.infer<typeof monthSchema>) { return this.accounts.monthlySummary(u.id, id, q.month); }
+
   @Get('accounts/:id/transactions')
   transactions(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Query(new ZodPipe(pageSchema)) q: z.infer<typeof pageSchema>) {
     return this.accounts.transactions(u.id, id, q.limit, q.cursor);
@@ -35,7 +42,7 @@ export class AccountsController {
 
   @Post('account-applications')
   apply(@CurrentUser() u: AuthUser, @Body(new ZodPipe(applySchema)) b: z.infer<typeof applySchema>) {
-    return this.accounts.apply(u.id, b.productCode, b.nickname);
+    return this.accounts.apply(u.id, b.productCode, b.nickname, b.fundingAccountId ? { accountId: b.fundingAccountId, amountMinor: b.fundingAmountMinor!, pin: b.pin! } : undefined);
   }
 }
 

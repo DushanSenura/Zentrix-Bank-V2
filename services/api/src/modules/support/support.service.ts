@@ -14,7 +14,7 @@ const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENTS_PER_TICKET = 10;
 const DISPUTE_WINDOW_DAYS = 90;
 
-export const DISPUTE_REASONS = ['UNAUTHORISED', 'WRONG_AMOUNT', 'DUPLICATE', 'NOT_RECEIVED', 'OTHER'] as const;
+export const DISPUTE_REASONS = ['UNAUTHORISED', 'WRONG_AMOUNT', 'DUPLICATE', 'NOT_RECEIVED', 'GOODS_NOT_RECEIVED', 'OTHER'] as const;
 export const TICKET_CATEGORIES = ['GENERAL', 'ACCOUNT', 'CARD', 'PAYMENT', 'LOAN', 'TECHNICAL'] as const;
 const DISPUTE_TEXT: Record<string, string> = { OPEN: 'Received', UNDER_REVIEW: 'Under review', ACCEPTED: 'Accepted', REJECTED: 'Not upheld' };
 const TICKET_TEXT: Record<string, string> = { OPEN: 'Open', PENDING_CUSTOMER: 'Waiting for your reply', RESOLVED: 'Resolved', CLOSED: 'Closed' };

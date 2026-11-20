@@ -151,7 +151,8 @@ model Session {
 model AuthenticationChallenge {
   id         String    @id @default(uuid()) @db.Uuid
   userId     String    @db.Uuid
-  purpose    String // PASSWORD_RESET
+  purpose    String // PASSWORD_RESET | STAFF_SETUP
+  attempts   Int       @default(0) // wrong guesses against a short verification code
   tokenHash  String    @unique
   expiresAt  DateTime
   consumedAt DateTime?
@@ -281,6 +282,8 @@ model AccountApplication {
   decidedById      String?           @db.Uuid
   decidedAt        DateTime?
   openingDepositMinor BigInt? // cash received at the branch, confirmed by staff at approval
+  fundingAccountId String?       @db.Uuid // the customer's own account the opening deposit is taken from, when they chose that
+  fundingAmountMinor BigInt?
   accountId        String?           @db.Uuid // set when approved
   createdAt        DateTime          @default(now())
 
@@ -415,6 +418,7 @@ model PaymentInstruction {
   feeMinor         BigInt        @default(0) // computed by the backend only
   currency         String
   scheduledFor     DateTime?
+  category         String? // spending category the customer chose (Food, Shopping, ...), used by analytics and budgets
   failureCode      String?
   idempotencyKey   String?
   note             String?
@@ -803,6 +807,10 @@ model SavingsGoal {
   name            String
   targetMinor     BigInt
   targetDate      DateTime?
+  monthlyAutoMinor BigInt? // automatic monthly saving, authorised once with the PIN
+  autoSourceAccountId String? @db.Uuid
+  autoNextRunAt   DateTime?
+  autoLastFailure String?
   status          String    @default("ACTIVE") // ACTIVE | ACHIEVED | CLOSED
   ledgerAccountId String    @unique @db.Uuid // LIABILITY account: the saved balance of the goal
   createdAt       DateTime  @default(now())

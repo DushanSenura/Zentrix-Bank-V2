@@ -19,6 +19,7 @@ export const DEFAULT_LOAN_PRODUCTS = [
   { code: 'PERSONAL', name: 'Personal Loan', minAmountMinor: 5_000_000n, maxAmountMinor: 500_000_000n, minTermMonths: 6, maxTermMonths: 60, rateBps: 1450 },
   { code: 'EDUCATION', name: 'Education Loan', minAmountMinor: 10_000_000n, maxAmountMinor: 1_000_000_000n, minTermMonths: 12, maxTermMonths: 84, rateBps: 1100 },
   { code: 'VEHICLE', name: 'Vehicle Loan', minAmountMinor: 50_000_000n, maxAmountMinor: 3_000_000_000n, minTermMonths: 12, maxTermMonths: 84, rateBps: 1250 },
+  { code: 'HOME', name: 'Home Loan', minAmountMinor: 100_000_000n, maxAmountMinor: 20_000_000_000n, minTermMonths: 60, maxTermMonths: 300, rateBps: 1050 },
 ];
 
 export interface RepaymentPlan {

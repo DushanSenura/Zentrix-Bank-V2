@@ -28,7 +28,8 @@ class TxnPage {
 }
 
 class TxnFilter {
-  const TxnFilter({this.accountId, this.q = '', this.direction, this.category, this.from, this.to, this.minMinor, this.maxMinor});
+  const TxnFilter({this.accountId, this.q = '', this.direction, this.category, this.kind, this.from, this.to, this.minMinor, this.maxMinor});
+  final String? kind; // payment type: INTERNAL_TRANSFER, BILL_PAYMENT, QR_PAYMENT, LOAN_INSTALMENT, FX_EXCHANGE ...
   final String? accountId;
   final String q;
   final String? direction; // IN | OUT
@@ -38,13 +39,13 @@ class TxnFilter {
   final int? minMinor;
   final int? maxMinor;
 
-  TxnFilter copyWith({String? accountId, bool clearAccount = false, String? q, String? direction, bool clearDirection = false, String? category, bool clearCategory = false, DateTime? from, DateTime? to, bool clearDates = false, int? minMinor, int? maxMinor, bool clearAmounts = false}) => TxnFilter(
-        accountId: clearAccount ? null : (accountId ?? this.accountId), q: q ?? this.q, direction: clearDirection ? null : (direction ?? this.direction), category: clearCategory ? null : (category ?? this.category),
+  TxnFilter copyWith({String? accountId, bool clearAccount = false, String? q, String? direction, bool clearDirection = false, String? category, bool clearCategory = false, String? kind, bool clearKind = false, DateTime? from, DateTime? to, bool clearDates = false, int? minMinor, int? maxMinor, bool clearAmounts = false}) => TxnFilter(
+        accountId: clearAccount ? null : (accountId ?? this.accountId), q: q ?? this.q, direction: clearDirection ? null : (direction ?? this.direction), category: clearCategory ? null : (category ?? this.category), kind: clearKind ? null : (kind ?? this.kind),
         from: clearDates ? null : (from ?? this.from), to: clearDates ? null : (to ?? this.to), minMinor: clearAmounts ? null : (minMinor ?? this.minMinor), maxMinor: clearAmounts ? null : (maxMinor ?? this.maxMinor),
       );
 
   /// How many of the advanced filters (beyond search text, account and direction) are on.
-  int get advancedCount => (category != null ? 1 : 0) + (from != null || to != null ? 1 : 0) + (minMinor != null || maxMinor != null ? 1 : 0);
+  int get advancedCount => (category != null ? 1 : 0) + (kind != null ? 1 : 0) + (from != null || to != null ? 1 : 0) + (minMinor != null || maxMinor != null ? 1 : 0);
 }
 
 class TxnDetail {
@@ -66,7 +67,10 @@ class TxnDetail {
   final String? paymentId;
 }
 
-const spendingCategories = ['Transfers', 'Electricity', 'Water', 'Telephone & mobile', 'Internet', 'Television', 'Insurance', 'Education', 'Credit cards', 'Government & rates', 'Loan repayments', 'Other'];
+/// Payment types the history can be limited to (the label, then the bank's own code).
+const transactionTypes = [('Transfers', 'INTERNAL_TRANSFER'), ('Other-bank transfers', 'INTERBANK_TRANSFER'), ('Bill payments', 'BILL_PAYMENT'), ('QR payments', 'QR_PAYMENT'), ('Loan repayments', 'LOAN_INSTALMENT'), ('Currency exchange', 'FX_EXCHANGE')];
+
+const spendingCategories = ['Food', 'Shopping', 'Transport', 'Bills', 'Entertainment', 'Health', 'Transfers', 'Electricity', 'Water', 'Telephone & mobile', 'Internet', 'Television', 'Insurance', 'Education', 'Credit cards', 'Government & rates', 'Loan repayments', 'Other'];
 
 class Dispute {
   const Dispute({required this.id, required this.reference, required this.status, required this.statusText, required this.reasonCode, required this.createdAt, this.resolution, this.paymentReference});
@@ -134,6 +138,7 @@ const disputeReasons = {
   'WRONG_AMOUNT': 'The amount is wrong',
   'DUPLICATE': 'I was charged twice',
   'NOT_RECEIVED': 'The recipient did not receive it',
+  'GOODS_NOT_RECEIVED': 'Goods or services not received',
   'OTHER': 'Something else',
 };
 const ticketCategories = {'GENERAL': 'General', 'ACCOUNT': 'Account', 'CARD': 'Card', 'PAYMENT': 'Payment', 'LOAN': 'Loan', 'TECHNICAL': 'App problem'};
@@ -151,6 +156,7 @@ class SupportRepository {
       if (f.q.trim().length >= 2) 'q': f.q.trim(),
       'direction': ?f.direction,
       'category': ?f.category,
+      'kind': ?f.kind,
       if (f.from != null) 'from': _day(f.from!),
       if (f.to != null) 'to': _day(f.to!),
       'minMinor': ?f.minMinor,

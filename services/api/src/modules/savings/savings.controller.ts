@@ -7,7 +7,8 @@ import { CurrentUser, CustomerOnly, type AuthUser } from '../auth/auth.decorator
 import { SavingsService } from './savings.service';
 
 const money = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
-const goalSchema = z.object({ name: z.string().trim().min(2).max(60), targetMinor: money, targetDate: z.string().datetime().optional() }).strict();
+const goalSchema = z.object({ name: z.string().trim().min(2).max(60), targetMinor: money, targetDate: z.string().datetime().optional(), monthlyAutoMinor: money.optional(), autoAccountId: z.string().uuid().optional(), pin: z.string().regex(/^(\d{4}|\d{6})$/).optional() }).strict();
+const autoSchema = z.object({ monthlyAutoMinor: money.nullable(), accountId: z.string().uuid().optional(), pin: z.string().regex(/^(\d{4}|\d{6})$/).optional() }).strict();
 const moveSchema = z.object({ accountId: z.string().uuid(), amountMinor: money, pin: z.string().regex(/^(\d{4}|\d{6})$/) }).strict();
 const budgetSchema = z.object({ limitMinor: money }).strict();
 
@@ -19,6 +20,8 @@ export class SavingsController {
 
   @Get('savings/goals') list(@CurrentUser() u: AuthUser) { return this.savings.list(u.id); }
   @Post('savings/goals') create(@CurrentUser() u: AuthUser, @Body(new ZodPipe(goalSchema)) b: z.infer<typeof goalSchema>) { return this.savings.create(u.id, b); }
+
+  @Put('savings/goals/:id/auto') setAuto(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Body(new ZodPipe(autoSchema)) b: z.infer<typeof autoSchema>) { return this.savings.setAuto(u.id, id, b); }
 
   @Post('savings/goals/:id/contribute')
   async contribute(@CurrentUser() u: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Headers('idempotency-key') key: string | undefined, @Body(new ZodPipe(moveSchema)) b: z.infer<typeof moveSchema>, @Res({ passthrough: true }) res: Response) {

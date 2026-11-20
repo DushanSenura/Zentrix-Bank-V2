@@ -58,8 +58,8 @@ class AuthController extends Notifier<AuthState> {
     state = AuthState(me: me, restoring: false);
   }
 
-  Future<void> register({required String fullName, required String username, required String email, required String password}) async =>
-      state = AuthState(me: await _repo.register(fullName: fullName, username: username, email: email, password: password), restoring: false);
+  Future<void> register({required String fullName, required String username, required String email, required String password, String? phone}) async =>
+      state = AuthState(me: await _repo.register(fullName: fullName, username: username, email: email, password: password, phone: phone), restoring: false);
 
   /// Re-reads the profile from the server (the server is the only authority on KYC/status).
   Future<void> refreshMe() async => state = AuthState(me: await _repo.me(), restoring: false);

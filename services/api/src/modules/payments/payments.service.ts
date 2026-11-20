@@ -35,6 +35,7 @@ export interface CreateInput {
   destination: DestinationInput;
   amountMinor: number;
   note?: string;
+  category?: string;
   scheduledFor?: string;
 }
 
@@ -216,7 +217,7 @@ export class PaymentsService {
         const p = await tx.paymentInstruction.create({
           data: {
             reference: newReference(), kind, status: 'AWAITING_AUTHORIZATION', initiatorId: userId, sourceAccountId: src.id, destination: stored as unknown as Prisma.InputJsonValue,
-            amountMinor: amount, feeMinor: fee, currency: src.currency, scheduledFor, note: input.note, idempotencyKey: key,
+            amountMinor: amount, feeMinor: fee, currency: src.currency, scheduledFor, note: input.note, category: input.category, idempotencyKey: key,
           },
         });
         const view = this.toView(p);
@@ -308,6 +309,11 @@ export class PaymentsService {
             { userId: p.initiatorId, category: 'TRANSACTION', title: 'Payment sent', body: `${lkr(p.amountMinor)} sent to ${dest.name}. Ref ${p.reference}` },
           ];
           if (toCustomer && toCustomer !== p.initiatorId) notify.push({ userId: toCustomer, category: 'TRANSACTION', title: 'Money received', body: `${lkr(p.amountMinor)} received from ${sender.fullName}. Ref ${p.reference}` });
+          if (dest.settle !== 'INTERNAL' || toCustomer !== p.initiatorId) {
+            const cfg = await tx.systemConfiguration.findUnique({ where: { key: 'alerts.largeTransferMinor' } });
+            const threshold = BigInt(typeof cfg?.value === 'number' && Number.isInteger(cfg.value) && cfg.value > 0 ? cfg.value : 10_000_000);
+            if (p.amountMinor >= threshold) notify.push({ userId: p.initiatorId, category: 'SECURITY', title: 'Large transfer', body: `${lkr(p.amountMinor)} left your account (Ref ${p.reference}). If this was not you, contact the bank immediately.` });
+          }
           await tx.outboxEvent.create({ data: { topic: 'payment.posted', payload: { paymentId: p.id, notify } } });
           await this.audit.record({ actorId: p.initiatorId, actorType: 'CUSTOMER', action: 'payment.posted', subjectType: 'PaymentInstruction', subjectId: p.id, metadata: { reference: p.reference, kind: p.kind } }, tx);
           return done;
@@ -316,7 +322,7 @@ export class PaymentsService {
       );
       if (out) {
         // Best-effort and AFTER the payment committed: budget alerts must never fail or delay a payment.
-        await this.savings.checkAfterPayment(out.initiatorId, out.kind, out.destination).catch(() => undefined);
+        await this.savings.checkAfterPayment(out.initiatorId, out.kind, out.destination, new Date(), out.category).catch(() => undefined);
         return this.toView(out);
       }
     } catch (e) {
@@ -358,9 +364,14 @@ export class PaymentsService {
     return this.toView(p);
   }
 
-  async list(userId: string, scheduledOnly: boolean) {
+  async list(userId: string, scheduledOnly: boolean, status?: string, fromRepeating = false) {
+    const byStatus: Prisma.PaymentInstructionWhereInput =
+      status === 'completed' ? { status: 'POSTED' }
+      : status === 'pending' ? { status: { in: ['AWAITING_AUTHORIZATION', 'AUTHORIZED'] } }
+      : status === 'failed' ? { status: 'FAILED' }
+      : {};
     const rows = await this.prisma.paymentInstruction.findMany({
-      where: { initiatorId: userId, ...(scheduledOnly ? { status: 'AUTHORIZED', scheduledFor: { not: null } } : {}) },
+      where: { initiatorId: userId, ...byStatus, ...(fromRepeating ? { scheduledPaymentId: { not: null } } : {}), ...(scheduledOnly ? { status: 'AUTHORIZED', scheduledFor: { not: null } } : {}) },
       orderBy: scheduledOnly ? { scheduledFor: 'asc' } : { createdAt: 'desc' },
       take: 50,
     });

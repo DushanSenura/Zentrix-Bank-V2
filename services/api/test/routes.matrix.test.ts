@@ -39,6 +39,7 @@ function inventory(ctx: Ctx): Route[] {
 const PUBLIC_ALLOWLIST = new Set([
   'POST /auth/register', 'POST /auth/login', 'POST /auth/refresh', 'POST /auth/mfa/verify',
   'POST /auth/password-reset/request', 'POST /auth/password-reset/confirm', 'POST /auth/staff-setup',
+  'GET /dev/reset-code', // same development-only guard as demo-accounts
   'GET /dev/demo-accounts', // 404s unless APP_ENV=development and the caller is on a local network (see dev-demo.test.ts)
   'GET /health/', 'GET /health/live', 'GET /system/status', // liveness and the maintenance banner: no customer data
   'POST /internal/jobs/run-due', // authenticated by a timing-safe shared secret instead of a session

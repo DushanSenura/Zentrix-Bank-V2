@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,10 +18,17 @@ class ZxBottomNav extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) => NavigationBar(
-        selectedIndex: index,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        onDestinationSelected: (i) { if (i != index) context.go(destinations[i].$4); },
-        destinations: [for (final d in destinations) NavigationDestination(icon: Icon(d.$1), selectedIcon: Icon(d.$2), label: d.$3)],
+  Widget build(BuildContext context) => ClipRect(
+        // Frosted glass: the page shows faintly through a blurred, mostly opaque bar.
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: NavigationBar(
+            backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.88),
+            selectedIndex: index,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+            onDestinationSelected: (i) { if (i != index) context.go(destinations[i].$4); },
+            destinations: [for (final d in destinations) NavigationDestination(icon: Icon(d.$1), selectedIcon: Icon(d.$2), label: d.$3)],
+          ),
+        ),
       );
 }
