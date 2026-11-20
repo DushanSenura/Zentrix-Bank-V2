@@ -536,7 +536,7 @@ class _BookDialogState extends ConsumerState<_BookDialog> {
               if (_purpose.text.trim().length < 3 || _when == null) return setState(() => _err = 'Add a reason and choose a day.');
               try {
                 await ref.read(supportRepositoryProvider).bookAppointment(branchId: widget.branch.id, purpose: _purpose.text.trim(), preferredAt: _when!);
-                if (mounted) Navigator.pop(context, true);
+                if (mounted) Navigator.pop(this.context, true);
               } catch (e) {
                 if (mounted) setState(() => _err = errorText(e));
               }

@@ -82,11 +82,11 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       final h = _heading(t.postedAt);
       if (h != last) { children.add(Padding(padding: const EdgeInsets.only(top: ZxSpace.sm), child: Semantics(header: true, child: Text(h, style: Theme.of(context).textTheme.titleSmall)))); last = h; }
       children.add(Semantics(
-        label: '${t.description}, ${formatMinor(t.amountMinor, signed: true)}, ${_day(t.postedAt)}',
+        label: '${t.description}, ${formatMinor(t.amountMinor, currency: t.currency, signed: true)}, ${_day(t.postedAt)}',
         child: ListTile(
           title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(t.accountLabel),
-          trailing: Text(formatMinor(t.amountMinor, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
+          trailing: Text(formatMinor(t.amountMinor, currency: t.currency, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
           onTap: () => context.push('/transactions/${t.id}'),
         ),
       ));
@@ -243,7 +243,7 @@ class _TransactionDetailsPageState extends ConsumerState<TransactionDetailsPage>
             Widget row(String k, String? v) => v == null || v.isEmpty ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Semantics(label: '$k: $v', excludeSemantics: true, child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 120, child: Text(k, style: TextStyle(color: context.zx.textMuted))), Expanded(child: Text(v))])));
             return ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
               GlassCard(blur: false, child: Column(children: [
-                Text(formatMinor(d.amountMinor, signed: true), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: d.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
+                Text(formatMinor(d.amountMinor, currency: d.currency, signed: true), style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, color: d.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
                 const SizedBox(height: ZxSpace.xs),
                 Text(d.description, textAlign: TextAlign.center),
                 if (d.status != 'POSTED') Padding(padding: const EdgeInsets.only(top: ZxSpace.xs), child: Chip(label: Text(d.status == 'REVERSED' ? 'Reversed' : d.status.toLowerCase()))),
@@ -251,7 +251,7 @@ class _TransactionDetailsPageState extends ConsumerState<TransactionDetailsPage>
               const SizedBox(height: ZxSpace.md),
               GlassCard(blur: false, child: Column(children: [
                 row('Date', _day(d.postedAt)), row('Account', d.accountLabel), row('Category', d.category), row('To / from', d.counterparty), row('Note', d.note),
-                row('Fee', d.feeMinor > 0 ? formatMinor(d.feeMinor) : null), row('Reference', d.reference),
+                row('Fee', d.feeMinor > 0 ? formatMinor(d.feeMinor, currency: d.currency) : null), row('Reference', d.reference),
               ])),
               if (d.paymentId != null) ReceiptActions(paymentId: d.paymentId!),
               if (d.canRepeat) Padding(padding: const EdgeInsets.only(top: ZxSpace.sm), child: FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), onPressed: _busy ? null : () => _repeat(d), icon: const Icon(Icons.replay), label: const Text('Repeat this payment'))),

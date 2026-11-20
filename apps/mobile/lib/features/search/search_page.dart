@@ -63,7 +63,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       if (!mounted || q != _q) return;
       setState(() => _remote = _Remote(
             (j['beneficiaries'] as List).cast<Map<String, dynamic>>(),
-            [for (final t in (j['transactions'] as List).cast<Map<String, dynamic>>()) TxnItem(id: t['id'] as String, reference: t['reference'] as String, description: (t['description'] as String?) ?? (t['kind'] as String), amountMinor: (t['amountMinor'] as num).toInt(), postedAt: DateTime.parse(t['postedAt'] as String), accountLabel: (t['accountLabel'] as String?) ?? '', paymentId: t['paymentId'] as String?)],
+            [for (final t in (j['transactions'] as List).cast<Map<String, dynamic>>()) TxnItem(id: t['id'] as String, reference: t['reference'] as String, description: (t['description'] as String?) ?? (t['kind'] as String), amountMinor: (t['amountMinor'] as num).toInt(), postedAt: DateTime.parse(t['postedAt'] as String), accountLabel: (t['accountLabel'] as String?) ?? '', paymentId: t['paymentId'] as String?, currency: (t['currency'] as String?) ?? 'LKR')],
           ));
     } catch (e) {
       if (mounted && q == _q) setState(() => _error = errorText(e));
@@ -103,7 +103,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ],
         if (_remote != null && _remote!.transactions.isNotEmpty) ...[
           head('Transactions'),
-          for (final t in _remote!.transactions) ListTile(title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(t.accountLabel), trailing: Text(formatMinor(t.amountMinor, signed: true)), onTap: () => _go('/transactions/${t.id}')),
+          for (final t in _remote!.transactions) ListTile(title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis), subtitle: Text(t.accountLabel), trailing: Text(formatMinor(t.amountMinor, currency: t.currency, signed: true)), onTap: () => _go('/transactions/${t.id}')),
         ],
         if (_loading) const Padding(padding: EdgeInsets.all(ZxSpace.md), child: Center(child: CircularProgressIndicator())),
         if (_error != null) ZxErrorText(_error!),

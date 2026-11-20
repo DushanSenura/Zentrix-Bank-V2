@@ -167,7 +167,7 @@ class _RecentTransactions extends ConsumerWidget {
                     dense: true,
                     title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text(t.accountLabel),
-                    trailing: Consumer(builder: (_, ref, _) => ref.watch(settingsProvider.select((s) => s.hideBalances)) ? Text(hiddenAmount) : Text(formatMinor(t.amountMinor, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null))),
+                    trailing: Consumer(builder: (_, ref, _) => ref.watch(settingsProvider.select((s) => s.hideBalances)) ? Text(hiddenAmount) : Text(formatMinor(t.amountMinor, currency: t.currency, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null))),
                     onTap: () => context.push('/transactions/${t.id}'),
                   ),
               ]))),
@@ -359,7 +359,7 @@ class _OpenAccountPageState extends ConsumerState<OpenAccountPage> with FormRunn
                 RadioListTile<String>(
                   value: p.code,
                   title: Text(p.name),
-                  subtitle: Text('Minimum opening deposit ${formatMinor(p.minOpeningMinor)}${p.interestRateBps > 0 ? ' · ${(p.interestRateBps / 100).toStringAsFixed(2)}% p.a.' : ''}'),
+                  subtitle: Text('${p.minOpeningMinor == 0 ? 'No opening deposit. Fund it by exchanging rupees.' : 'Minimum opening deposit ${formatMinor(p.minOpeningMinor)}'}${p.interestRateBps > 0 ? ' · ${(p.interestRateBps / 100).toStringAsFixed(2)}% p.a.' : ''}'),
                 ),
             ]),
           ),

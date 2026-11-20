@@ -10,7 +10,8 @@ DateTime _d(Object? v) => DateTime.parse(v as String);
 List<Map<String, dynamic>> _list(Map<String, dynamic> j) => (j['items'] as List).cast<Map<String, dynamic>>();
 
 class TxnItem {
-  const TxnItem({required this.id, required this.reference, required this.description, required this.amountMinor, required this.postedAt, required this.accountLabel, this.paymentId});
+  const TxnItem({required this.id, required this.reference, required this.description, required this.amountMinor, required this.postedAt, required this.accountLabel, this.paymentId, this.currency = 'LKR'});
+  final String currency;
   final String id;
   final String reference;
   final String description;
@@ -47,7 +48,8 @@ class TxnFilter {
 }
 
 class TxnDetail {
-  const TxnDetail({required this.id, required this.reference, required this.description, required this.status, required this.amountMinor, required this.postedAt, required this.accountLabel, required this.feeMinor, required this.canRepeat, required this.canReport, this.category, this.counterparty, this.note, this.paymentId});
+  final String currency;
+  const TxnDetail({this.currency = 'LKR', required this.id, required this.reference, required this.description, required this.status, required this.amountMinor, required this.postedAt, required this.accountLabel, required this.feeMinor, required this.canRepeat, required this.canReport, this.category, this.counterparty, this.note, this.paymentId});
   final String id;
   final String reference;
   final String description;
@@ -157,7 +159,7 @@ class SupportRepository {
     });
     return TxnPage([
       for (final t in _list(j))
-        TxnItem(id: t['id'] as String, reference: t['reference'] as String, description: (t['description'] as String?) ?? (t['kind'] as String), amountMinor: _i(t['amountMinor']), postedAt: _d(t['postedAt']), accountLabel: (t['accountLabel'] as String?) ?? '', paymentId: t['paymentId'] as String?),
+        TxnItem(id: t['id'] as String, reference: t['reference'] as String, description: (t['description'] as String?) ?? (t['kind'] as String), amountMinor: _i(t['amountMinor']), postedAt: _d(t['postedAt']), accountLabel: (t['accountLabel'] as String?) ?? '', paymentId: t['paymentId'] as String?, currency: (t['currency'] as String?) ?? 'LKR'),
     ], j['nextCursor'] as String?);
   }
 
@@ -167,7 +169,7 @@ class SupportRepository {
     final j = await _api.getJson('/api/v1/transactions/$id');
     final cp = j['counterparty'] as Map<String, dynamic>?;
     return TxnDetail(
-      id: j['id'] as String, reference: j['reference'] as String, description: (j['description'] as String?) ?? (j['kind'] as String), status: j['status'] as String, amountMinor: _i(j['amountMinor']), postedAt: _d(j['postedAt']),
+      currency: (j['currency'] as String?) ?? 'LKR', id: j['id'] as String, reference: j['reference'] as String, description: (j['description'] as String?) ?? (j['kind'] as String), status: j['status'] as String, amountMinor: _i(j['amountMinor']), postedAt: _d(j['postedAt']),
       accountLabel: (j['account'] as Map)['label'] as String, feeMinor: _i(j['feeMinor']), canRepeat: j['canRepeat'] == true, canReport: j['canReport'] == true, category: j['category'] as String?, note: j['note'] as String?, paymentId: j['paymentId'] as String?,
       counterparty: cp == null ? null : [cp['name'], cp['bank'], cp['accountMasked']].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
     );

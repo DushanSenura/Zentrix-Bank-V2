@@ -11,6 +11,7 @@ import '../features/authentication/presentation/auth_pages.dart';
 import '../features/authentication/presentation/lock.dart';
 import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
+import '../features/fx/fx_pages.dart';
 import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
 import '../features/search/search_page.dart';
@@ -68,6 +69,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: ':id', builder: (_, st) => LoanDetailPage(id: st.pathParameters['id']!)),
         ]),
         GoRoute(path: 'savings', builder: (_, _) => const SavingsPage()),
+        GoRoute(path: 'exchange', builder: (_, _) => const ExchangePage()),
         GoRoute(path: 'budgets', builder: (_, _) => const BudgetsPage()),
       ]),
       GoRoute(path: '/payments', builder: (_, _) => const PaymentsHubPage(), routes: [
