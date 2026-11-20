@@ -463,7 +463,11 @@ class NotificationsPage extends ConsumerStatefulWidget {
   ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
 }
 
+const _notificationFilters = [('All', null), ('Payments', 'TRANSACTION'), ('Security', 'SECURITY'), ('Accounts', 'ACCOUNT'), ('Cards', 'CARD'), ('Loans', 'LOAN'), ('Deposits', 'DEPOSIT'), ('Budgets', 'BUDGET')];
+
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  String? _category;
+
   @override
   Widget build(BuildContext context) {
     final feed = ref.watch(notificationsProvider);
@@ -477,12 +481,15 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         data: (f) => RefreshIndicator(
           onRefresh: () async => ref.invalidate(notificationsProvider),
           child: ListView(padding: const EdgeInsets.all(ZxSpace.md), physics: const AlwaysScrollableScrollPhysics(), children: [
-            if (f.items.isEmpty) const Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Text('No notifications yet.', textAlign: TextAlign.center)),
-            for (final n in f.items) Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: GlassCard(blur: false, padding: EdgeInsets.zero, child: ListTile(
+            Wrap(spacing: ZxSpace.sm, runSpacing: ZxSpace.xs, children: [for (final (label, value) in _notificationFilters) ChoiceChip(label: Text(label), selected: _category == value, onSelected: (_) => setState(() => _category = value))]),
+            const SizedBox(height: ZxSpace.sm),
+            if (f.items.where((n) => _category == null || n.category == _category).isEmpty) Padding(padding: const EdgeInsets.all(ZxSpace.lg), child: Text(_category == null ? 'No notifications yet.' : 'Nothing in this category.', textAlign: TextAlign.center)),
+            for (final n in f.items.where((n) => _category == null || n.category == _category)) Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: GlassCard(blur: false, padding: EdgeInsets.zero, child: ListTile(
               leading: Icon(n.read ? Icons.notifications_none : Icons.notifications_active, color: n.read ? null : context.zx.primary),
               title: Text(n.title, style: TextStyle(fontWeight: n.read ? FontWeight.w500 : FontWeight.w800)),
               subtitle: Text('${n.body}\n${fmtDateTime(n.createdAt)}'),
               isThreeLine: true,
+              onTap: n.read ? null : () async { await ref.read(paymentsRepositoryProvider).markRead(n.id); ref.invalidate(notificationsProvider); ref.invalidate(unreadCountProvider); },
             ))),
           ]),
         ),

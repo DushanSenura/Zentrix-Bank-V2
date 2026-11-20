@@ -130,7 +130,8 @@ class Recurring {
 }
 
 class NotificationItem {
-  const NotificationItem({required this.id, required this.title, required this.body, required this.read, required this.createdAt});
+  const NotificationItem({required this.id, required this.title, required this.body, required this.read, required this.createdAt, this.category = 'ACCOUNT'});
+  final String category;
   final String id;
   final String title;
   final String body;
@@ -213,11 +214,12 @@ class PaymentsRepository {
     final d = await _api.getJson('/api/v1/notifications');
     return NotificationFeed((d['unread'] as num).toInt(), [
       for (final n in (d['items'] as List).cast<Map<String, dynamic>>())
-        NotificationItem(id: n['id'] as String, title: n['title'] as String, body: n['body'] as String, read: n['read'] == true, createdAt: DateTime.parse(n['createdAt'] as String)),
+        NotificationItem(id: n['id'] as String, title: n['title'] as String, body: n['body'] as String, read: n['read'] == true, createdAt: DateTime.parse(n['createdAt'] as String), category: (n['category'] as String?) ?? 'ACCOUNT'),
     ]);
   }
 
   Future<void> markAllRead() => _api.postJson('/api/v1/notifications/read-all', {});
+  Future<void> markRead(String id) => _api.postJson('/api/v1/notifications/$id/read', {});
 }
 
 final paymentsRepositoryProvider = Provider<PaymentsRepository>((ref) => PaymentsRepository(ref.watch(authRepositoryProvider)));

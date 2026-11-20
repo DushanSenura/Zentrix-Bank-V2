@@ -10,6 +10,7 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_controller.dart';
 import '../../support/presentation/support_pages.dart' show ReceiptActions;
+import '../../../core/network/resilience.dart' show onlineProvider;
 import '../data/payments_repository.dart';
 
 String two(int n) => n.toString().padLeft(2, '0');
@@ -174,7 +175,8 @@ class _PaymentReviewPageState extends ConsumerState<PaymentReviewPage> {
           ])),
           const SizedBox(height: ZxSpace.md),
           ZxErrorText(_error),
-          ZxButton(label: _recurring ? 'Authorize repeating payment' : (d.scheduledFor != null ? 'Authorize scheduled payment' : 'Authorize payment'), onPressed: _authorize),
+          if (!(ref.watch(onlineProvider).asData?.value ?? true)) const Padding(padding: EdgeInsets.only(bottom: ZxSpace.sm), child: Text('You are offline. Reconnect to authorize this payment.', textAlign: TextAlign.center)),
+          ZxButton(label: _recurring ? 'Authorize repeating payment' : (d.scheduledFor != null ? 'Authorize scheduled payment' : 'Authorize payment'), onPressed: (ref.watch(onlineProvider).asData?.value ?? true) ? _authorize : null),
           TextButton(onPressed: () => context.pop(), child: const Text('Cancel')),
         ]);
     }

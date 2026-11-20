@@ -1,4 +1,4 @@
-import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, LifeBuoy, AlertTriangle, MapPin, ShieldAlert, Activity, type LucideIcon } from 'lucide-react'
+import { BarChart3, ClipboardList, CreditCard, Landmark, LayoutDashboard, Lock, Menu, PanelLeftClose, PanelLeftOpen, ScrollText, Settings, ShieldCheck, UserCog, Users, Wallet, ArrowLeftRight, FileCheck2, PiggyBank, LifeBuoy, AlertTriangle, MapPin, ShieldAlert, Activity, Coins, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth'
@@ -20,6 +20,7 @@ export const NAV: { group: string; items: Item[] }[] = [
   { group: 'Money', items: [
     { to: '/payments', label: 'Transactions', icon: ArrowLeftRight, any: ['transactions.read'] },
     { to: '/operations', label: 'Ledger operations', icon: ClipboardList, any: ['transactions.adjust', 'transactions.read'] },
+    { to: '/fx', label: 'Exchange rates', icon: Coins, any: ['settings.manage'] },
     { to: '/reports', label: 'Reports', icon: BarChart3, any: ['reports.read'] },
   ] },
   { group: 'Service', items: [

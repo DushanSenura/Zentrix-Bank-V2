@@ -127,3 +127,19 @@ NOT done / limits:
 
 ## Project status
 All ten phases are built to the extent described in each phase section. The unverified items above (real devices, real browser sessions across the admin portal, hosted staging, CI, external security review, native-language review, a live AI model) are what separates this from a release candidate.
+
+## Phase 11 — V1 feature parity: DONE with listed gaps (verified 2026-11-22)
+Request: "add all the V1 bank app features to V2". I compared V1's README and its 40 routes with V2; the full table is `docs/v1-migration/parity-status.md`.
+
+Verified: API 219 tests (against a real PostgreSQL test DB), worker 5, admin 47, Flutter 177 (incl. light/dark/2x-text accessibility checks on every new screen); typecheck, build, `flutter analyze` and `pnpm audit` clean. New migrations: customer preferences, customer 2FA (+ recovery codes), FX rates.
+
+Built: profile and contact edit (PIN-protected, audited), server-enforced notification preferences and default account, personal daily limit, transaction filters / details / repeat, global search, loan calculator, donut and cash-flow charts, bottom navigation with home quick actions and recent transactions, offline banner (payments paused), maintenance screen, session-expiry sign-out, crash handling, error references, call / email / directions links, nearest branches, optional certificate pinning, real customer two-step sign-in with recovery codes, foreign-currency accounts with quoted atomic exchange and staff-set rates (admin page), notification filters.
+
+Defects found while building and fixed: a dialog crashed ("controller used after dispose") when it closed (two-step and appointment dialogs); a null-check crash on "Get quote" with nothing selected; `setState` returned a Future in the loan calculator; `mailto:` links encoded spaces as "+"; the new `effect` advisory needed an override pinned below v4 (v4 broke Prisma). Income analytics would have counted an FX leg as money in and summed currencies; both are excluded and tested.
+
+NOT done / limits:
+* Customisable home widgets; Sinhala / Tamil app screens; foreign-currency payments to other people and international transfers; phone push (token registration). See `parity-status.md`.
+* **Nothing was run on a device or emulator by me.** All new mobile screens are covered by widget tests and fakes only. Location, calling, directions, the share sheet, connectivity detection and the authenticator QR have never run on real hardware. The Android debug build compiles with the new plugins and permissions (checked); the release build was not re-run.
+* FX rates are fictional and set by staff; the spread is a setting (default 1.5%). Exchange is between a customer's own accounts only, with the PIN; there is no daily FX limit beyond the per-transfer limit.
+* Two-step recovery: if a customer loses both phone and codes there is no staff-assisted reset yet.
+
