@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../auth'
 import { ApiError } from '../../services/api'
+import DemoAccounts from './DemoAccounts'
 
 export default function LoginPage() {
   const { me, login } = useAuth()
@@ -24,7 +25,7 @@ export default function LoginPage() {
   }
   const field = 'mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 outline-none focus:ring-2 focus:ring-primary'
   return (
-    <main className="grid min-h-screen place-items-center p-6">
+    <main className="flex min-h-screen flex-col items-center justify-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl bg-surface p-8 shadow-sm ring-1 ring-black/5">
         <h1 className="text-xl font-semibold">Staff sign-in</h1>
         <label className="block text-sm">Username or email
@@ -41,6 +42,7 @@ export default function LoginPage() {
         {error && <p role="alert" className="text-sm text-err">{error}</p>}
         <button disabled={busy} className="w-full rounded-lg bg-primary px-4 py-2 font-medium text-white disabled:opacity-60">{busy ? 'Signing in…' : needMfa ? 'Verify' : 'Continue'}</button>
       </form>
+      <DemoAccounts onPick={(u, p, c) => { setIdentifier(u); setPassword(p); setNeedMfa(false); setCode(c ?? '') }} />
     </main>
   )
 }

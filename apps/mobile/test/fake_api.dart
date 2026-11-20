@@ -62,6 +62,10 @@ class FakeApi implements AuthRepository {
     return DownloadedFile(Uint8List.fromList([0x25, 0x50, 0x44, 0x46]), 'doc.pdf', 'application/pdf');
   }
 
+  List<DemoAccount> demo = const [];
+  @override
+  Future<List<DemoAccount>> demoAccounts() async => demo;
+
   @override
   Future<void> logout() async {}
   @override

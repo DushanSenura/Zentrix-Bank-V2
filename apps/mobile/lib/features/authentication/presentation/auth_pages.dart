@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -99,11 +100,52 @@ class _LoginPageState extends ConsumerState<LoginPage> with FormRunner {
             onPressed: () { if (_form.currentState!.validate()) run(() => ref.read(authControllerProvider.notifier).login(_id.text, _pw.text, remember: _remember)); },
           ),
           TextButton(onPressed: () => context.push('/forgot'), child: const Text('Forgot password?')),
+          if (kDebugMode) _DemoAccounts(onPick: (u, p) => setState(() { _id.text = u; _pw.text = p; })),
           TextButton(onPressed: () => context.push('/register'), child: const Text('Create an account')),
         ]),
       ),
     ]);
   }
+}
+
+/// DEBUG BUILDS ONLY (guarded by kDebugMode, so it is compiled out of release builds): the fictional seeded customers, fetched from a
+/// local development API. It shows nothing when the server does not offer them.
+class _DemoAccounts extends ConsumerStatefulWidget {
+  const _DemoAccounts({required this.onPick});
+  final void Function(String username, String password) onPick;
+  @override
+  ConsumerState<_DemoAccounts> createState() => _DemoAccountsState();
+}
+
+class _DemoAccountsState extends ConsumerState<_DemoAccounts> {
+  late final Future<List<DemoAccount>> _future = Future(() => ref.read(authRepositoryProvider).demoAccounts()).catchError((_) => const <DemoAccount>[]); // any failure just means no demo section
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<DemoAccount>>(
+        future: _future,
+        builder: (context, snap) {
+          final items = snap.data ?? const <DemoAccount>[];
+          if (items.isEmpty) return const SizedBox.shrink();
+          return Card(
+            margin: const EdgeInsets.only(top: ZxSpace.md),
+            child: Padding(
+              padding: const EdgeInsets.all(ZxSpace.md),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Demo customers (development only, fictional)', style: TextStyle(fontWeight: FontWeight.w600)),
+                for (final a in items)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    title: Text(a.fullName),
+                    subtitle: SelectableText([a.username, a.password, if (a.pin != null) 'App PIN: ${a.pin}'].join('\n')),
+                    isThreeLine: true,
+                    trailing: TextButton(onPressed: () => widget.onPick(a.username, a.password), child: const Text('Use')),
+                  ),
+              ]),
+            ),
+          );
+        },
+      );
 }
 
 // ───────────────────────── Register ─────────────────────────

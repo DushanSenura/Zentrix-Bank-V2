@@ -65,6 +65,15 @@ class DeviceInfo {
   final String? label;
 }
 
+/// A fictional seeded customer offered on the sign-in screen of DEBUG builds only.
+class DemoAccount {
+  const DemoAccount({required this.username, required this.password, required this.fullName, this.pin});
+  final String username;
+  final String password;
+  final String fullName;
+  final String? pin;
+}
+
 class AuthRepository {
   AuthRepository(this._dio, this._store, [this._prefs]);
   final Dio _dio;
@@ -153,6 +162,20 @@ class AuthRepository {
       (await _authed((o) => _dio.post(path, options: o.copyWith(headers: {...?o.headers, ...?headers}), data: body))).data ?? const {};
   Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async =>
       (await _authed((o) => _dio.put(path, options: o, data: body))).data ?? const {};
+  /// Development helper: the API answers 404 anywhere except a local development server, and this returns an empty list then.
+  Future<List<DemoAccount>> demoAccounts() async {
+    try {
+      final r = await _dio.get<Map<String, dynamic>>('/api/v1/dev/demo-accounts');
+      if (r.statusCode != 200) return const [];
+      return [
+        for (final a in ((r.data?['accounts'] as List?) ?? const []).cast<Map<String, dynamic>>())
+          if (a['kind'] == 'CUSTOMER') DemoAccount(username: a['username'] as String, password: a['password'] as String, fullName: a['fullName'] as String, pin: a['pin'] as String?),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Binary download (statements, receipts). Same refresh and error rules as the JSON helpers.
   Future<DownloadedFile> getFile(String path, {Map<String, dynamic>? query}) async {
     Future<Response<List<int>>> call() => _dio.get<List<int>>(path, queryParameters: query, options: _auth.copyWith(responseType: ResponseType.bytes));

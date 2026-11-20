@@ -63,3 +63,8 @@ locks staff out of MFA until they re-enrol, so rotate it deliberately. The envir
   been scanned by an image scanner.
 * Swagger is served at `/api/docs` in every non-production environment, including staging.
 * Single instance of each service: no high availability, no horizontal scaling test.
+
+## Demo accounts are development-only
+The sign-in screens list seeded demo accounts (and the admin shows a live authenticator code) **only** against a local development server:
+the API route `/api/v1/dev/demo-accounts` answers 404 unless `APP_ENV=development` and the caller is on a loopback or private network; the
+admin panel is compiled out of production builds; the mobile panel only exists in debug builds. Staging and production show nothing.

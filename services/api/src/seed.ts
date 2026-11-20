@@ -5,11 +5,11 @@
  *   pnpm db:seed
  */
 import { PrismaClient } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { loadEnv } from './config/env';
 import { encrypt } from './security/crypto';
-import { hashSecret } from './security/password';
+import { hashSecret, pinProblem } from './security/password';
 import { DEFAULT_RATES } from './modules/deposits/deposits.service';
 import { DEFAULT_LOAN_PRODUCTS } from './modules/loans/loans.service';
 import { LedgerService } from './modules/ledger/ledger.service';
@@ -99,6 +99,7 @@ async function main() {
   ];
   for (const [username, role, fullName] of demoStaff) await ensureUser({ username, email: `${username}@zentrix.test`, type: 'STAFF', fullName, status: 'ACTIVE', role });
   await ensureUser({ username: 'amaya.demo', email: 'amaya.demo@zentrix.test', type: 'CUSTOMER', fullName: 'Amaya Perera (fictional)', status: 'ACTIVE', kyc: 'APPROVED', customerNumber: 'ZB90000001' });
+  await ensureUser({ username: 'kamal.demo', email: 'kamal.demo@zentrix.test', type: 'CUSTOMER', fullName: 'Kamal Fernando (fictional)', status: 'ACTIVE', kyc: 'APPROVED', customerNumber: 'ZB90000003' });
   await ensureUser({ username: 'nuwan.demo', email: 'nuwan.demo@zentrix.test', type: 'CUSTOMER', fullName: 'Nuwan Silva (fictional)', status: 'PENDING_VERIFICATION', kyc: 'SUBMITTED', customerNumber: 'ZB90000002' });
 
   // Fictional demo money for amaya.demo: one funded savings account (via the ledger) and one pending application.
@@ -122,11 +123,44 @@ async function main() {
     console.log('demo account + pending application created for amaya.demo');
   }
 
+  // Kamal gets a funded account too, so the demo customers can pay each other.
+  const kamal = await prisma.user.findUnique({ where: { username: 'kamal.demo' } });
+  if (kamal && (await prisma.account.count({ where: { customerId: kamal.id } })) === 0) {
+    const product = await prisma.accountProduct.findUniqueOrThrow({ where: { code: 'SAVINGS_STD' } });
+    const n = '10000000002';
+    const acc = await prisma.account.create({
+      data: { customerId: kamal.id, productId: product.id, accountNumber: n, nickname: 'Everyday', ledgerAccount: { create: { code: `ACC-${n}`, name: `Customer account ${n}`, type: 'LIABILITY', currency: 'LKR' } } },
+      include: { ledgerAccount: true },
+    });
+    const svc = new PrismaService();
+    await svc.$connect();
+    const ledger = new LedgerService(svc);
+    await ledger.post({ reference: `DEMO-OPEN-${n}`, kind: 'ACCOUNT_OPENING', currency: 'LKR', description: 'Opening deposit (demo)', postings: [
+      { ledgerAccountId: await ledger.systemAccountId('cash'), direction: 'DEBIT', amountMinor: 2_500_000n, currency: 'LKR' },
+      { ledgerAccountId: acc.ledgerAccount!.id, direction: 'CREDIT', amountMinor: 2_500_000n, currency: 'LKR' } ] });
+    await svc.$disconnect();
+    console.log('demo account created for kamal.demo');
+  }
+
+  // The two active demo customers get an app PIN (random, kept only in the git-ignored credentials file) so payments can be tried.
+  for (const username of ['amaya.demo', 'kamal.demo']) {
+    const u = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    const known = existsSync('../../.local-dev-credentials.json') ? (JSON.parse(readFileSync('../../.local-dev-credentials.json', 'utf8')) as Record<string, { pin?: string }>)[username]?.pin : undefined;
+    if (!u || known) continue; // a demo customer whose PIN we do not know (for example set by hand earlier) gets a fresh one: this is demo data only
+    let pin = '';
+    do { pin = String(randomInt(0, 1_000_000)).padStart(6, '0'); } while (pinProblem(pin));
+    await prisma.user.update({ where: { id: u.id }, data: { pinHash: await hashSecret(pin), pinSetAt: new Date() } });
+    creds[username] = { ...((creds[username] as object) ?? {}), pin };
+    console.log(`app PIN set for ${username}`);
+  }
+
   if (Object.keys(creds).length > 1) {
     // Merge with what is already there: users that already existed keep their credentials, and re-running must not erase them.
     const file = '../../.local-dev-credentials.json';
     const previous = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>) : {};
-    writeFileSync(file, JSON.stringify({ ...previous, ...creds }, null, 2), { mode: 0o600 });
+    const merged: Record<string, unknown> = { ...previous };
+    for (const [k, v] of Object.entries(creds)) merged[k] = typeof v === 'object' && v && typeof merged[k] === 'object' ? { ...(merged[k] as object), ...v } : v;
+    writeFileSync(file, JSON.stringify(merged, null, 2), { mode: 0o600 });
     console.log('Credentials written to .local-dev-credentials.json (git-ignored).');
   }
   await prisma.$disconnect();

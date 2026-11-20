@@ -34,7 +34,7 @@ const pages: [string, React.ReactElement][] = [
 describe('admin accessibility (axe, structural rules)', () => {
   for (const [name, el] of pages) {
     it(`${name}: no violations in the empty/loaded state`, async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => json(200, { items: [], sections: [], kpis: [], queues: [], roles: [], permissions: [], groups: [], status: 'OK', warnings: [], outbox: { pending: 0, oldestPendingSeconds: 0, failing: 0 }, notificationsLast24h: 0, scheduledPaymentsOverdue: 0, unfinishedPaymentsOverAnHour: 0, openRiskAlertsBySeverity: {}, queues2: {} })))
+      vi.stubGlobal('fetch', vi.fn(async () => json(200, { pending: {}, ok: true, mismatches: [], pendingApprovals: 0, checks: { database: { status: 'up' }, redis: { status: 'up' } }, items: [], sections: [], kpis: [], queues: [], roles: [], permissions: [], groups: [], status: 'OK', warnings: [], outbox: { pending: 0, oldestPendingSeconds: 0, failing: 0 }, notificationsLast24h: 0, scheduledPaymentsOverdue: 0, unfinishedPaymentsOverAnHour: 0, openRiskAlertsBySeverity: {}, queues2: {} })))
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <AuthContext.Provider value={auth}><MemoryRouter>{el}</MemoryRouter></AuthContext.Provider>

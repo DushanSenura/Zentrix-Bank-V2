@@ -61,6 +61,7 @@ Widget app(FakeAuthRepository repo, {bool onboarded = true, bool biometric = fal
 }
 
 void main() {
+  demoTests();
   testWidgets('first launch shows onboarding, which leads to login and is not shown again', (t) async {
     await t.pumpWidget(app(FakeAuthRepository(), onboarded: false));
     await t.pumpAndSettle();
@@ -199,4 +200,36 @@ void main() {
 
 extension on Me {
   Me copyWith2({bool? hasPin}) => Me(id: id, fullName: fullName, status: status, kycStatus: kycStatus, hasPin: hasPin ?? this.hasPin, customerNumber: customerNumber);
+}
+
+// ───────────────────────── demo customers on the sign-in screen (debug builds) ─────────────────────────
+class _DemoRepo extends FakeAuthRepository {
+  _DemoRepo(this.demo) : super();
+  final List<DemoAccount> demo;
+  @override
+  Future<List<DemoAccount>> demoAccounts() async => demo;
+}
+
+void demoTests() {
+  Widget app(AuthRepository repo) => ProviderScope(
+        overrides: [authRepositoryProvider.overrideWithValue(repo), prefsStoreProvider.overrideWithValue(MemoryPrefsStore()..data['onboarded'] = '1'), biometricServiceProvider.overrideWithValue(FakeBiometrics())],
+        child: const ZentrixApp(),
+      );
+
+  testWidgets('sign-in lists the demo customers and fills the form when one is chosen', (t) async {
+    await t.pumpWidget(app(_DemoRepo(const [DemoAccount(username: 'amaya.demo', password: 'demo-pass-1', fullName: 'Amaya Perera (fictional)', pin: '482916')])));
+    await t.pumpAndSettle();
+    expect(find.text('Amaya Perera (fictional)'), findsOneWidget);
+    expect(find.textContaining('App PIN: 482916'), findsOneWidget);
+    await t.tap(find.text('Use'));
+    await t.pumpAndSettle();
+    expect(find.widgetWithText(TextFormField, 'amaya.demo'), findsOneWidget);
+  });
+
+  testWidgets('sign-in shows no demo section when the server offers none', (t) async {
+    await t.pumpWidget(app(_DemoRepo(const [])));
+    await t.pumpAndSettle();
+    expect(find.textContaining('Demo customers'), findsNothing);
+    expect(find.text('Sign in'), findsOneWidget);
+  });
 }
