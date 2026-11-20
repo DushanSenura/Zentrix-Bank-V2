@@ -45,6 +45,12 @@ class FakeApi implements AuthRepository {
   }
 
   @override
+  Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) async {
+    requests.add(Req('PATCH', path, null, body, null));
+    return handler(path, null, body);
+  }
+
+  @override
   Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async {
     requests.add(Req('PUT', path, null, body, null));
     return handler(path, null, body);

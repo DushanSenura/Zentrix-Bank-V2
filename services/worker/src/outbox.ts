@@ -31,9 +31,14 @@ export async function relayOutboxBatch(prisma: PrismaClient, limit = 50, after?:
       const notify = (e.payload as { notify?: unknown } | null)?.notify;
       if (Array.isArray(notify)) data.push(...notify.filter(isNotify));
     }
-    if (data.length) await tx.notification.createMany({ data });
+    // Honour the customer's own choice to mute a category. SECURITY is never muted. The event is still consumed (published),
+    // so a muted notification is simply not created rather than retried forever.
+    const prefs = await tx.customerPreference.findMany({ where: { customerId: { in: [...new Set(data.map((d) => d.userId))] }, mutedCategories: { isEmpty: false } }, select: { customerId: true, mutedCategories: true } });
+    const muted = new Map(prefs.map((p) => [p.customerId, new Set(p.mutedCategories)]));
+    const deliver = data.filter((d) => d.category === 'SECURITY' || !muted.get(d.userId)?.has(d.category));
+    if (deliver.length) await tx.notification.createMany({ data: deliver });
     await tx.outboxEvent.updateMany({ where: { id: { in: events.map((e) => e.id) } }, data: { publishedAt: new Date(), attempts: { increment: 1 } } });
-    return { events: events.length, notifications: data.length, created: data };
+    return { events: events.length, notifications: deliver.length, created: deliver };
   }, { maxWait: 15_000, timeout: 30_000 });
   if (after && result.created.length) await after(result.created).catch(() => undefined); // push is best-effort
   return { events: result.events, notifications: result.notifications };

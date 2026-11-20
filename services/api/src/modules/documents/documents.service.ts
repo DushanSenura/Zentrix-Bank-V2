@@ -7,6 +7,7 @@ import { PrismaService } from '../../common/prisma.service';
 import { masked, num } from '../accounts/accounts.service';
 import { formatMinor } from '../ledger/money';
 import { PaymentsService } from '../payments/payments.service';
+import { paymentCategory } from '../savings/savings.service';
 import { simpleInterest } from '../deposits/interest';
 import { dateText, Doc, label, lkrText, type Lang } from './pdf';
 
@@ -23,7 +24,14 @@ export function colomboStart(day: string): Date {
   return d;
 }
 
-export interface SearchQuery { accountId?: string; q?: string; from?: string; to?: string; minMinor?: number; maxMinor?: number; direction?: 'IN' | 'OUT'; kind?: string; limit?: number; cursor?: string }
+export interface SearchQuery { accountId?: string; category?: string; q?: string; from?: string; to?: string; minMinor?: number; maxMinor?: number; direction?: 'IN' | 'OUT'; kind?: string; limit?: number; cursor?: string }
+
+/** Spending category as a database filter, mirroring paymentCategory(): bills by their category, then Transfers and Loan repayments. */
+function categoryFilter(category: string): Prisma.PaymentInstructionWhereInput {
+  if (category === 'Transfers') return { kind: { in: ['INTERNAL_TRANSFER', 'INTERBANK_TRANSFER', 'QR_PAYMENT'] } };
+  if (category === 'Loan repayments') return { kind: 'LOAN_INSTALMENT' };
+  return { kind: 'BILL_PAYMENT', destination: { path: ['category'], equals: category } };
+}
 
 @Injectable()
 export class DocumentsService {
@@ -53,7 +61,7 @@ export class DocumentsService {
     if (q.minMinor !== undefined || q.maxMinor !== undefined) where.amountMinor = { ...(q.minMinor !== undefined ? { gte: BigInt(q.minMinor) } : {}), ...(q.maxMinor !== undefined ? { lte: BigInt(q.maxMinor) } : {}) };
     if (q.from || q.to) where.createdAt = { ...(q.from ? { gte: colomboStart(q.from) } : {}), ...(q.to ? { lt: new Date(colomboStart(q.to).getTime() + 86_400_000) } : {}) };
     const term = q.q?.trim();
-    const journal: Prisma.LedgerJournalWhereInput = { ...(q.kind ? { kind: q.kind } : {}), ...(term && term.length >= 2 ? { OR: [{ description: { contains: term, mode: 'insensitive' } }, { reference: { contains: term, mode: 'insensitive' } }] } : {}) };
+    const journal: Prisma.LedgerJournalWhereInput = { ...(q.kind ? { kind: q.kind } : {}), ...(q.category ? { payment: categoryFilter(q.category) } : {}), ...(term && term.length >= 2 ? { OR: [{ description: { contains: term, mode: 'insensitive' } }, { reference: { contains: term, mode: 'insensitive' } }] } : {}) };
     if (Object.keys(journal).length) where.journal = journal;
     if (q.cursor) {
       const [at, id] = Buffer.from(q.cursor, 'base64url').toString().split('|');
@@ -70,6 +78,51 @@ export class DocumentsService {
       })),
       nextCursor: rows.length > limit && last ? Buffer.from(`${last.createdAt.toISOString()}|${last.id}`).toString('base64url') : null,
     };
+  }
+
+  /** One transaction in full, for the details screen: the posting, its payment (if any) and what can be done next. */
+  async detail(customerId: string, postingId: string) {
+    const p = await this.prisma.ledgerPosting.findUnique({ where: { id: postingId }, include: { journal: { include: { payment: true } }, ledgerAccount: { include: { account: true } } } });
+    const acc = p?.ledgerAccount.account;
+    if (!p || !acc || acc.customerId !== customerId) {
+      if (p && acc) await this.audit.securityEvent('FORBIDDEN_RESOURCE_ACCESS', customerId, { resource: 'LedgerPosting', id: postingId });
+      throw new NotFoundException({ code: 'not_found', message: 'Transaction not found' });
+    }
+    const pay = p.journal.payment;
+    const mine = !!pay && pay.initiatorId === customerId;
+    const dest = (pay?.destination ?? {}) as Record<string, unknown>;
+    const reversed = !!(await this.prisma.ledgerJournal.findFirst({ where: { reversesJournalId: p.journal.id }, select: { id: true } }));
+    return {
+      id: p.id, reference: p.journal.reference, kind: p.journal.kind, description: p.journal.description, status: reversed ? 'REVERSED' : p.journal.status,
+      amountMinor: num(p.direction === 'CREDIT' ? p.amountMinor : -p.amountMinor), currency: p.currency, postedAt: p.createdAt,
+      account: { id: acc.id, label: acc.nickname ?? masked(acc.accountNumber), numberMasked: masked(acc.accountNumber) },
+      category: pay && mine ? paymentCategory(pay.kind, pay.destination) : null,
+      counterparty: mine ? { name: (dest.name as string | undefined) ?? null, bank: (dest.bank as string | undefined) ?? null, accountMasked: (dest.accountMasked as string | undefined) ?? null } : null,
+      note: mine ? pay!.note : null, feeMinor: mine ? num(pay!.feeMinor) : 0,
+      paymentId: pay ? pay.id : null,
+      canRepeat: mine && pay!.status === 'POSTED' && pay!.kind !== 'LOAN_INSTALMENT' && !reversed, // only payments made in the app, and never a loan instalment
+      canReport: mine && pay!.status === 'POSTED' && pay!.kind !== 'OWN_TRANSFER',
+    };
+  }
+
+  /** A new payment draft body copied from an earlier payment of this customer's, so "repeat" never invents a recipient. */
+  async repeatDraft(customerId: string, paymentId: string) {
+    const pay = await this.prisma.paymentInstruction.findUnique({ where: { id: paymentId } });
+    if (!pay || pay.initiatorId !== customerId) {
+      if (pay) await this.audit.securityEvent('FORBIDDEN_RESOURCE_ACCESS', customerId, { resource: 'PaymentInstruction', id: paymentId });
+      throw new NotFoundException({ code: 'not_found', message: 'Payment not found' });
+    }
+    if (pay.status !== 'POSTED' || pay.kind === 'LOAN_INSTALMENT') throw new ConflictException({ code: 'not_repeatable', message: 'This payment cannot be repeated' });
+    const d = (pay.destination ?? {}) as Record<string, unknown>;
+    let destination: Record<string, unknown> | null = null;
+    if (d.settle === 'INTERNAL' && typeof d.toAccountId === 'string') {
+      const to = await this.prisma.account.findUnique({ where: { id: d.toAccountId } });
+      if (!to || to.status === 'CLOSED') throw new ConflictException({ code: 'recipient_unavailable', message: 'That account is no longer available' });
+      destination = to.customerId === customerId ? { type: 'OWN', accountId: to.id } : { type: 'ZENTRIX', accountNumber: to.accountNumber };
+    } else if (d.settle === 'INTERBANK') destination = { type: 'INTERBANK', bankCode: d.bankCode, accountNumber: d.accountNumber, holderName: d.name };
+    else if (d.settle === 'BILL') destination = { type: 'BILL', billerCode: d.billerCode, billRef: d.billRef };
+    if (!destination) throw new ConflictException({ code: 'not_repeatable', message: 'This payment cannot be repeated' });
+    return { sourceAccountId: pay.sourceAccountId, destination, amountMinor: num(pay.amountMinor), note: pay.note, recipientName: (d.name as string | undefined) ?? null };
   }
 
   // ═════════════════════════ statements ═════════════════════════

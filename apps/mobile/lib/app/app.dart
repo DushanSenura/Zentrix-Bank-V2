@@ -11,6 +11,7 @@ import '../features/authentication/presentation/onboarding_carousel.dart';
 import '../features/authentication/presentation/onboarding_pages.dart';
 import '../features/insights/presentation/insights_pages.dart';
 import '../features/payments/data/payments_repository.dart';
+import '../features/profile/profile_pages.dart';
 import '../features/payments/presentation/payment_flow.dart';
 import '../features/payments/presentation/payments_pages.dart';
 import '../features/security_center/security_pages.dart';
@@ -74,6 +75,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ]),
       GoRoute(path: '/insights', builder: (_, _) => const InsightsPage()),
       GoRoute(path: '/assistant', builder: (_, _) => const AssistantPage()),
+      GoRoute(path: '/profile', builder: (_, _) => const ProfilePage(), routes: [GoRoute(path: 'edit', builder: (_, _) => const EditProfilePage())]),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
       GoRoute(path: '/history', builder: (_, _) => const HistoryPage()),
       GoRoute(path: '/statements', builder: (_, _) => const StatementsPage()),
       GoRoute(path: '/support', builder: (_, _) => const SupportHubPage(), routes: [
@@ -99,6 +102,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         GoRoute(path: 'sessions', builder: (_, _) => const SessionsPage()),
         GoRoute(path: 'devices', builder: (_, _) => const DevicesPage()),
         GoRoute(path: 'history', builder: (_, _) => const LoginHistoryPage()),
+        GoRoute(path: 'limits', builder: (_, _) => const LimitsPage()),
         GoRoute(path: 'preferences', builder: (_, _) => const PreferencesPage()),
       ]),
     ],

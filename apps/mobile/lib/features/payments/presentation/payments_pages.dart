@@ -12,7 +12,14 @@ import '../../accounts/data/accounts_repository.dart';
 import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_pages.dart';
 import '../data/payments_repository.dart';
+import '../../profile/profile_repository.dart' show prefsProvider;
 import 'payment_flow.dart';
+
+/// The customer's chosen default account when it is usable, otherwise the first one.
+String preferredSource(WidgetRef ref, List<Account> usable) {
+  final d = ref.watch(prefsProvider).asData?.value.defaultAccountId;
+  return usable.any((a) => a.id == d) ? d! : usable.first.id;
+}
 
 String _err(Object e) => e is ApiFailure ? e.message : 'Something went wrong. Please try again.';
 
@@ -112,7 +119,7 @@ class _TransferPageState extends ConsumerState<TransferPage> {
             data: (list) {
               final active = list.items.where((a) => a.status == 'ACTIVE').toList();
               if (active.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Text('You need an active account to send money.', textAlign: TextAlign.center)));
-              _source ??= active.first.id;
+              _source ??= preferredSource(ref, active);
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(ZxSpace.md),
                 child: Form(
@@ -223,7 +230,7 @@ class _BillsPageState extends ConsumerState<BillsPage> {
         data: (c) {
           final cats = c.billers.map((b) => b.category).toSet().toList();
           final billers = c.billers.where((b) => b.category == _category).toList();
-          if (accounts.isNotEmpty) _source ??= accounts.first.id;
+          if (accounts.isNotEmpty) _source ??= preferredSource(ref, accounts);
           return SingleChildScrollView(padding: const EdgeInsets.all(ZxSpace.md), child: Form(key: _form, child: GlassCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             DropdownButtonFormField<String>(initialValue: _category, isExpanded: true, decoration: const InputDecoration(labelText: 'Category'), validator: (v) => v == null ? 'Choose a category' : null, items: [for (final x in cats) DropdownMenuItem(value: x, child: Text(x))], onChanged: (v) => setState(() { _category = v; _biller = null; })),
             const SizedBox(height: ZxSpace.md),

@@ -972,3 +972,15 @@ model ReminderLog {
 
   @@unique([kind, subjectId, dueKey])
 }
+
+// ───────────────────────── Phase 11: V1 feature parity ─────────────────────────
+
+/// Per-customer choices that are enforced by the SERVER (default pay-from account, muted notification categories, own daily limit).
+model CustomerPreference {
+  customerId       String   @id @db.Uuid
+  defaultAccountId String?  @db.Uuid
+  mutedCategories  String[] @default([]) // SECURITY can never be muted
+  dailyLimitMinor  BigInt? // customer-chosen; never above the bank maximum; null = bank default
+  updatedAt        DateTime @updatedAt
+}
+

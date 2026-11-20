@@ -160,6 +160,8 @@ class AuthRepository {
       (await _authed((o) => _dio.get(path, options: o, queryParameters: query))).data ?? const {};
   Future<Map<String, dynamic>> postJson(String path, Map<String, dynamic> body, {Map<String, String>? headers}) async =>
       (await _authed((o) => _dio.post(path, options: o.copyWith(headers: {...?o.headers, ...?headers}), data: body))).data ?? const {};
+  Future<Map<String, dynamic>> patchJson(String path, Map<String, dynamic> body) async =>
+      (await _authed((o) => _dio.patch(path, options: o, data: body))).data ?? const {};
   Future<Map<String, dynamic>> putJson(String path, Map<String, dynamic> body) async =>
       (await _authed((o) => _dio.put(path, options: o, data: body))).data ?? const {};
   /// Development helper: the API answers 404 anywhere except a local development server, and this returns an empty list then.

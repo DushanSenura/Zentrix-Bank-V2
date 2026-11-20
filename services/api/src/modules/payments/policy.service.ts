@@ -25,8 +25,15 @@ export class PolicyService {
     return kind === 'INTERBANK_TRANSFER' ? this.num('fees.interbankMinor') : 0n;
   }
 
-  async limits(): Promise<{ perTransferMinor: bigint; dailyMinor: bigint }> {
-    return { perTransferMinor: await this.num('limits.perTransferMinor'), dailyMinor: await this.num('limits.dailyTransferMinor') };
+  /** Bank limits, with the customer's own (lower) daily limit applied when a customer is given. A customer can never get more than the bank allows. */
+  async limits(customerId?: string): Promise<{ perTransferMinor: bigint; dailyMinor: bigint }> {
+    const bank = await this.num('limits.dailyTransferMinor');
+    let daily = bank;
+    if (customerId) {
+      const own = await this.prisma.customerPreference.findUnique({ where: { customerId }, select: { dailyLimitMinor: true } });
+      if (own?.dailyLimitMinor !== null && own?.dailyLimitMinor !== undefined && own.dailyLimitMinor < bank) daily = own.dailyLimitMinor;
+    }
+    return { perTransferMinor: await this.num('limits.perTransferMinor'), dailyMinor: daily };
   }
 }
 

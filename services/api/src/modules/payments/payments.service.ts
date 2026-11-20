@@ -194,7 +194,7 @@ export class PaymentsService {
       if (amount > r.settlementMinor) throw new UnprocessableEntityException({ code: 'overpayment', message: `That is more than you owe. The settlement amount today is ${lkr(r.settlementMinor)}.` });
     }
     const fee = await this.policy.feeFor(kind, amount);
-    const lim = await this.policy.limits();
+    const lim = await this.policy.limits(userId);
     if (amount > lim.perTransferMinor) throw new UnprocessableEntityException({ code: 'limit_exceeded', message: `The limit per payment is ${lkr(lim.perTransferMinor)}` });
 
     let scheduledFor: Date | null = null;
@@ -274,7 +274,7 @@ export class PaymentsService {
           const p = await tx.paymentInstruction.findUniqueOrThrow({ where: { id } });
           await tx.$queryRaw`SELECT id FROM "User" WHERE id=${p.initiatorId}::uuid FOR UPDATE`; // serialise a customer's limit checks
 
-          const lim = await this.policy.limits();
+          const lim = await this.policy.limits(p.initiatorId);
           if (p.amountMinor > lim.perTransferMinor) throw new PaymentRefusal('LIMIT_EXCEEDED');
           const now = new Date();
           if (p.kind !== 'OWN_TRANSFER' && p.kind !== 'LOAN_INSTALMENT' && (await this.dailyUsed(p.initiatorId, now, tx)) + p.amountMinor > lim.dailyMinor) throw new PaymentRefusal('LIMIT_EXCEEDED');
@@ -394,7 +394,7 @@ export class PaymentsService {
     const now = Date.now();
     if (Number.isNaN(start.getTime()) || start.getTime() < now + 60_000 || start.getTime() > now + 366 * 86_400_000 || (end && (Number.isNaN(end.getTime()) || end <= start)))
       throw new BadRequestException({ code: 'validation_failed', message: 'Check the start and end dates', fields: { startDate: 'Invalid date' } });
-    const lim = await this.policy.limits();
+    const lim = await this.policy.limits(userId);
     if (BigInt(i.amountMinor) > lim.perTransferMinor) throw new UnprocessableEntityException({ code: 'limit_exceeded', message: `The limit per payment is ${lkr(lim.perTransferMinor)}` });
     await this.pins.verify(userId, i.pin); // the standing instruction itself is PIN-authorised
     const row = await this.prisma.scheduledPayment.create({
