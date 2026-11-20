@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/authentication/data/auth_repository.dart';
+import 'package:go_router/go_router.dart';
+
 import 'bottom_nav.dart';
 import 'tokens.dart';
 import 'widgets.dart';
@@ -37,7 +39,14 @@ class ServicePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(title), actions: actions),
+        // A back button is always present on non-tab pages: pop when there is somewhere to go back to, otherwise return home
+        // (for example after the app was restored straight onto this page).
+        appBar: AppBar(
+          title: Text(title),
+          actions: actions,
+          automaticallyImplyLeading: false,
+          leading: navIndex != null ? null : IconButton(tooltip: 'Back', icon: const Icon(Icons.arrow_back), onPressed: () => context.canPop() ? context.pop() : context.go('/')),
+        ),
         floatingActionButton: fab,
         bottomNavigationBar: navIndex == null ? null : ZxBottomNav(index: navIndex!),
         body: ZxBackdrop(child: SafeArea(child: body)),
