@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/design_system/bottom_nav.dart';
+import '../../../core/utils/no_retry.dart';
 import '../../../core/design_system/tokens.dart';
+import '../../support/data/support_repository.dart';
 import '../../../core/design_system/widgets.dart';
 import '../../../core/utils/money.dart';
 import '../../authentication/data/auth_repository.dart';
@@ -48,10 +51,11 @@ class AccountsHome extends ConsumerWidget {
     final accounts = ref.watch(accountListProvider);
     final hide = ref.watch(settingsProvider.select((s) => s.hideBalances));
     return Scaffold(
+      bottomNavigationBar: const ZxBottomNav(index: 0),
       body: ZxBackdrop(
         child: SafeArea(
           child: RefreshIndicator(
-            onRefresh: () async { ref.invalidate(accountListProvider); await ref.read(accountListProvider.future).catchError((_) => const AccountList([], 0)); },
+            onRefresh: () async { ref.invalidate(recentTransactionsProvider); ref.invalidate(accountListProvider); await ref.read(accountListProvider.future).catchError((_) => const AccountList([], 0)); },
             child: ListView(padding: const EdgeInsets.all(ZxSpace.md), physics: const AlwaysScrollableScrollPhysics(), children: [
               Row(children: [
                 Expanded(child: Text('Hello, ${me.fullName.split(' ').first}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800))),
@@ -78,7 +82,9 @@ class AccountsHome extends ConsumerWidget {
                     AmountText(list.totalBalanceMinor, animate: true, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800, fontFeatures: const [FontFeature.tabularFigures()])),
                   ])),
                   const SizedBox(height: ZxSpace.md),
+                  if (list.items.isNotEmpty) const _QuickActions(),
                   if (list.items.isNotEmpty) ...[
+                    const SizedBox(height: ZxSpace.md),
                     Row(children: [
                       Expanded(child: FilledButton.icon(style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), onPressed: () => context.push('/payments/transfer'), icon: const Icon(Icons.send), label: const Text('Send money'))),
                       const SizedBox(width: ZxSpace.sm),
@@ -96,6 +102,8 @@ class AccountsHome extends ConsumerWidget {
                     for (final a in list.items) Padding(padding: const EdgeInsets.only(bottom: ZxSpace.sm), child: _AccountCard(a)),
                     const SizedBox(height: ZxSpace.sm),
                     OutlinedButton.icon(onPressed: () => context.push('/accounts/open'), icon: const Icon(Icons.add), label: const Text('Open another account')),
+                    const SizedBox(height: ZxSpace.md),
+                    const _RecentTransactions(),
                   ],
                   OutlinedButton.icon(onPressed: () => context.push('/services'), icon: const Icon(Icons.apps), label: const Text('Cards, deposits, loans & savings')),
                   TextButton(onPressed: () => context.push('/applications'), child: const Text('Account applications')),
@@ -105,6 +113,65 @@ class AccountsHome extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+final recentTransactionsProvider = FutureProvider.autoDispose<List<TxnItem>>((ref) async => (await ref.watch(supportRepositoryProvider).transactions(const TxnFilter())).items.take(5).toList(), retry: noRetry);
+
+/// The things people do most, one tap from home.
+class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+  @override
+  Widget build(BuildContext context) {
+    Widget action(IconData i, String label, String route) => Expanded(
+          child: Semantics(
+            button: true,
+            label: label,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(ZxSpace.radiusSm),
+              onTap: () => context.push(route),
+              child: Padding(padding: const EdgeInsets.symmetric(vertical: ZxSpace.sm), child: Column(mainAxisSize: MainAxisSize.min, children: [
+                CircleAvatar(radius: 24, backgroundColor: context.zx.primary.withValues(alpha: 0.12), child: Icon(i, color: context.zx.primary)),
+                const SizedBox(height: 6),
+                Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+              ])),
+            ),
+          ),
+        );
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      action(Icons.swap_horiz, 'Transfer', '/payments/transfer'),
+      action(Icons.receipt_outlined, 'Pay bills', '/payments/bills'),
+      action(Icons.qr_code_scanner, 'Scan', '/payments/scan'),
+      action(Icons.credit_card, 'Cards', '/services/cards'),
+      action(Icons.apps, 'More', '/services'),
+    ]);
+  }
+}
+
+class _RecentTransactions extends ConsumerWidget {
+  const _RecentTransactions();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final r = ref.watch(recentTransactionsProvider);
+    return r.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(), // the accounts above already explain a connection problem
+      data: (items) => items.isEmpty
+          ? const SizedBox.shrink()
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text('Recent transactions', style: Theme.of(context).textTheme.titleSmall)), TextButton(onPressed: () => context.go('/history'), child: const Text('View all'))]),
+              GlassCard(blur: false, padding: EdgeInsets.zero, child: Material(type: MaterialType.transparency, child: Column(children: [
+                for (final t in items)
+                  ListTile(
+                    dense: true,
+                    title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(t.accountLabel),
+                    trailing: Consumer(builder: (_, ref, _) => ref.watch(settingsProvider.select((s) => s.hideBalances)) ? Text(hiddenAmount) : Text(formatMinor(t.amountMinor, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null))),
+                    onTap: () => context.push('/transactions/${t.id}'),
+                  ),
+              ]))),
+            ]),
     );
   }
 }

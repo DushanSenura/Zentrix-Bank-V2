@@ -22,6 +22,7 @@ class CardsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ServicePage(
+      navIndex: 2,
       title: 'Cards',
       fab: FloatingActionButton.extended(onPressed: () => context.push('/services/cards/request'), icon: const Icon(Icons.add_card), label: const Text('Request a card')),
       body: AsyncView<List<BankCard>>(

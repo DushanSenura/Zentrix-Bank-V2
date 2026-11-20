@@ -16,6 +16,8 @@ Map<String, dynamic> payment(String status, {int amount = 250000, int fee = 0, S
 Map<String, dynamic>? base(String p) {
   if (p == '/api/v1/accounts') return {'items': [acct('a1', 'Main savings', 5000000)], 'totalBalanceMinor': 5000000};
   if (p == '/api/v1/notifications') return {'unread': 0, 'items': []};
+  if (p == '/api/v1/me/preferences') return {'defaultAccountId': null, 'notifications': {}, 'alwaysOn': ['SECURITY']};
+  if (p == '/api/v1/transactions') return {'items': [], 'nextCursor': null}; // the home screen's recent-transactions list
   return null;
 }
 
@@ -209,7 +211,7 @@ void main() {
     });
     await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
-    await t.tap(find.text('Payments'));
+    await t.tap(find.widgetWithText(OutlinedButton, 'Payments')); // the home button, not the nav bar label
     await t.pumpAndSettle();
     await t.tap(find.text('Recipients'));
     await t.pumpAndSettle();
@@ -237,7 +239,7 @@ void main() {
     });
     await t.pumpWidget(appWith(api));
     await t.pumpAndSettle();
-    await t.tap(find.text('Payments'));
+    await t.tap(find.widgetWithText(OutlinedButton, 'Payments')); // the home button, not the nav bar label
     await t.pumpAndSettle();
     await t.tap(find.text('Scheduled & repeating'));
     await t.pumpAndSettle();

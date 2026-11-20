@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/authentication/data/auth_repository.dart';
+import 'bottom_nav.dart';
 import 'tokens.dart';
 import 'widgets.dart';
 
@@ -24,16 +25,18 @@ class AsyncView<T> extends StatelessWidget {
 
 /// Backdrop + SafeArea scaffold used by list-style service screens.
 class ServicePage extends StatelessWidget {
-  const ServicePage({super.key, required this.title, required this.body, this.fab, this.actions});
+  const ServicePage({super.key, required this.title, required this.body, this.fab, this.actions, this.navIndex});
   final String title;
   final Widget body;
   final Widget? fab;
   final List<Widget>? actions;
+  final int? navIndex; // set on the five tab pages to show the bottom navigation bar
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(title), actions: actions),
         floatingActionButton: fab,
+        bottomNavigationBar: navIndex == null ? null : ZxBottomNav(index: navIndex!),
         body: ZxBackdrop(child: SafeArea(child: body)),
       );
 }

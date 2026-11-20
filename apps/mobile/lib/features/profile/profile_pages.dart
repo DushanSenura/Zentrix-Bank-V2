@@ -25,6 +25,7 @@ class ProfilePage extends ConsumerWidget {
     final unread = ref.watch(unreadCountProvider).asData?.value ?? 0;
     Widget tile(IconData i, String t, String route, {Widget? trailing}) => ListTile(minTileHeight: 56, leading: Icon(i), title: Text(t), trailing: trailing ?? const Icon(Icons.chevron_right), onTap: () => context.push(route));
     return ServicePage(
+      navIndex: 4,
       title: 'Profile',
       body: ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
         GlassCard(blur: false, child: Row(children: [

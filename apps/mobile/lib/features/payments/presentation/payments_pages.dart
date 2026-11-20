@@ -13,6 +13,7 @@ import '../../authentication/data/auth_repository.dart';
 import '../../authentication/presentation/auth_pages.dart';
 import '../data/payments_repository.dart';
 import '../../profile/profile_repository.dart' show prefsProvider;
+import '../../../core/design_system/bottom_nav.dart';
 import 'payment_flow.dart';
 
 /// The customer's chosen default account when it is usable, otherwise the first one.
@@ -37,6 +38,7 @@ class PaymentsHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget tile(IconData i, String t, String sub, String route) => ListTile(leading: Icon(i), title: Text(t), subtitle: Text(sub), trailing: const Icon(Icons.chevron_right), onTap: () => context.push(route));
     return Scaffold(
+      bottomNavigationBar: const ZxBottomNav(index: 1),
       appBar: AppBar(title: const Text('Payments')),
       body: ZxBackdrop(child: SafeArea(child: ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
         GlassCard(blur: false, padding: EdgeInsets.zero, child: Column(children: [

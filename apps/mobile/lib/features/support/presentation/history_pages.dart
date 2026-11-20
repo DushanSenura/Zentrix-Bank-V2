@@ -94,6 +94,7 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
     if (_cursor != null) children.add(Padding(padding: const EdgeInsets.all(ZxSpace.md), child: OutlinedButton(onPressed: _more ? null : () => _load(append: true), child: Text(_more ? 'Loading…' : 'Load more'))));
 
     return ServicePage(
+      navIndex: 3,
       title: 'Transaction history',
       actions: [IconButton(tooltip: 'Statements', icon: const Icon(Icons.description_outlined), onPressed: () => context.push('/statements'))],
       body: Column(children: [
