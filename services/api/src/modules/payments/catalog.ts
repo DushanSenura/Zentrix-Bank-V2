@@ -19,10 +19,14 @@ export const BILLERS: Biller[] = [
   { code: 'OTH-01', name: 'Community Fund (sample)', category: 'Other' },
 ];
 
+/** Fictional banks for the simulation. The codes are stored with saved recipients and payments, so they never change; names can. */
 export const SIMULATED_BANKS = [
-  { code: 'SIM-BANK-A', name: 'Sample Bank A' },
-  { code: 'SIM-BANK-B', name: 'Sample Bank B' },
-  { code: 'SIM-BANK-C', name: 'Sample Bank C' },
+  { code: 'SIM-BANK-A', name: 'Lanka Heritage Bank (sample)' },
+  { code: 'SIM-BANK-B', name: 'Island Commerce Bank (sample)' },
+  { code: 'SIM-BANK-C', name: 'Ceylon Trust Bank (sample)' },
+  { code: 'SIM-BANK-D', name: 'Serendib Savings Bank (sample)' },
+  { code: 'SIM-BANK-E', name: 'Lotus National Bank (sample)' },
+  { code: 'SIM-BANK-F', name: 'Pearl Union Bank (sample)' },
 ] as const;
 
 export const bankName = (code: string) => (code === 'ZENTRIX' ? 'Zentrix Bank' : SIMULATED_BANKS.find((b) => b.code === code)?.name ?? code);
