@@ -52,7 +52,7 @@ android {
             signingConfig = when {
                 haveReleaseKey -> signingConfigs.getByName("release")
                 project.hasProperty("zentrix.allowDebugSigning") -> signingConfigs.getByName("debug")
-                else -> throw GradleException("No release signing key. Create android/key.properties (see docs/deployment/android-release.md), or pass -Pzentrix.allowDebugSigning=true for a test-only build.")
+                else -> null   // refused below, but ONLY if a release artifact is actually being built (debug runs must keep working)
             }
             isMinifyEnabled = true
             isShrinkResources = true
@@ -69,4 +69,12 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// Fail the build only when a release artifact is requested without a key. Doing this while configuring would also break `flutter run`.
+gradle.taskGraph.whenReady {
+    val buildsRelease = allTasks.any { it.project.name == "app" && Regex("^(assemble|bundle|package)Release$").matches(it.name) }
+    if (buildsRelease && !haveReleaseKey && !project.hasProperty("zentrix.allowDebugSigning")) {
+        throw GradleException("No release signing key. Create android/key.properties (see docs/deployment/android-release.md), or pass -Pzentrix.allowDebugSigning=true for a test-only build.")
+    }
 }
