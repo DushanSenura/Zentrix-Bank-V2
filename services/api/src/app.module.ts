@@ -34,6 +34,8 @@ import { SupportService } from './modules/support/support.service';
 import { LocalDiskStorage, OBJECT_STORAGE } from './modules/support/storage';
 import { LimitsController, ProfileController } from './modules/customers/profile.controller';
 import { TwoFactorController } from './modules/auth/two-factor.controller';
+import { AdminFxController, FxController } from './modules/fx/fx.controller';
+import { FxService } from './modules/fx/fx.service';
 import { DemoAccountsController } from './modules/dev/demo-accounts.controller';
 import { AiService } from './modules/ai/ai.service';
 import { AI_PROVIDER, createProvider } from './modules/ai/provider';
@@ -57,7 +59,7 @@ import { HealthController } from './modules/health/health.controller';
     // skipIf: automated tests drive many logins from one IP; production/dev always enforce.
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 240 }], skipIf: () => process.env.NODE_ENV === 'test' }),
   ],
-  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController, TwoFactorController],
+  controllers: [HealthController, AuthController, SecurityController, MeController, AdminKycController, AccountsController, AdminAccountsController, PaymentsController, NotificationsController, AdminPaymentsController, InternalJobsController, CardsController, AdminCardsController, DepositsController, AdminDepositsController, LoansController, AdminLoansController, SavingsController, AdminOverviewController, AdminSettingsController, SystemController, AdminStaffController, StaffSetupController, AdminLedgerOpsController, SupportController, AdminSupportController, DocumentsController, ExtrasController, AnalyticsController, AdminRiskController, StaffNotificationsController, DemoAccountsController, ProfileController, LimitsController, TwoFactorController, FxController, AdminFxController],
   providers: [
     AuthService,
     LedgerService,
@@ -78,6 +80,7 @@ import { HealthController } from './modules/health/health.controller';
     SupportService,
     DocumentsService,
     ExtrasService,
+    FxService,
     AnalyticsService,
     RiskService,
     RemindersService,

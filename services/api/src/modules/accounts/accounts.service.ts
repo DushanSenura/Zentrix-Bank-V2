@@ -108,12 +108,12 @@ export class AccountsService {
   // ───────────────────────── products & applications ─────────────────────────
   products() {
     return this.prisma.accountProduct
-      .findMany({ where: { active: true, kind: { in: ['SAVINGS', 'CURRENT'] } }, orderBy: { code: 'asc' } })
+      .findMany({ where: { active: true, kind: { in: ['SAVINGS', 'CURRENT', 'FOREIGN_CURRENCY'] } }, orderBy: { code: 'asc' } })
       .then((rows) => ({ items: rows.map((p) => ({ code: p.code, name: p.name, kind: p.kind, currency: p.currency, minOpeningMinor: num(p.minOpeningMinor), interestRateBps: p.interestRateBps })) }));
   }
 
   async apply(customerId: string, productCode: string, nickname?: string) {
-    const product = await this.prisma.accountProduct.findFirst({ where: { code: productCode, active: true, kind: { in: ['SAVINGS', 'CURRENT'] } } });
+    const product = await this.prisma.accountProduct.findFirst({ where: { code: productCode, active: true, kind: { in: ['SAVINGS', 'CURRENT', 'FOREIGN_CURRENCY'] } } });
     if (!product) throw new NotFoundException({ code: 'product_not_found', message: 'That account type is not available' });
     const max = await this.maxAccounts();
     const [open, pending] = await Promise.all([

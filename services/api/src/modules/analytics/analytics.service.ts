@@ -39,7 +39,7 @@ export class AnalyticsService {
       JOIN "Account" a ON a.id = la."accountId"
       JOIN "LedgerJournal" j ON j.id = lp."journalId"
       LEFT JOIN "PaymentInstruction" pi ON pi.id = j."paymentId"
-      WHERE a."customerId" = ${customerId}::uuid AND lp.direction = 'CREDIT' AND lp."createdAt" >= ${start} AND lp."createdAt" < ${end}
+      WHERE a."customerId" = ${customerId}::uuid AND lp.direction = 'CREDIT' AND lp.currency = 'LKR' AND j.kind <> 'FX_EXCHANGE' AND lp."createdAt" >= ${start} AND lp."createdAt" < ${end}
         AND (pi.id IS NULL OR pi."initiatorId" <> ${customerId}::uuid)`);
     return num(r[0]?.v ?? 0n);
   }

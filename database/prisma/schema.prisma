@@ -996,3 +996,11 @@ model RecoveryCode {
   @@index([userId])
 }
 
+/// Bank-set mid rate for a foreign currency: LKR per ONE unit of that currency, times 1,000,000 (so 320.50 is 320500000). The spread is a setting.
+model FxRate {
+  currency     String   @id
+  midRateMicro BigInt
+  updatedBy    String?  @db.Uuid
+  updatedAt    DateTime @updatedAt
+}
+

@@ -9,7 +9,7 @@ import { formatMinor } from '../ledger/money';
 import { PaymentsService } from '../payments/payments.service';
 import { paymentCategory } from '../savings/savings.service';
 import { simpleInterest } from '../deposits/interest';
-import { dateText, Doc, label, lkrText, type Lang } from './pdf';
+import { dateText, Doc, label, lkrText, moneyText, type Lang } from './pdf';
 
 const OFFSET_MS = 5.5 * 3_600_000; // Sri Lanka
 const MAX_ROWS = 5000;
@@ -142,6 +142,8 @@ export class DocumentsService {
     const rows = await this.prisma.ledgerPosting.findMany({ where: { ledgerAccountId: la, createdAt: { gte: start, lt: endExcl } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: MAX_ROWS + 1, include: { journal: true } });
     if (rows.length > MAX_ROWS) throw new UnprocessableEntityException({ code: 'too_many_rows', message: `That period has more than ${MAX_ROWS} entries. Please choose a shorter period.` });
 
+    const cur = acc.currency;
+    const money = (v: bigint | number) => moneyText(v, cur);
     let run = opening;
     const lines = rows.map((p) => {
       const signed = p.direction === 'CREDIT' ? p.amountMinor : -p.amountMinor;
@@ -166,13 +168,13 @@ export class DocumentsService {
     doc.line(`${label(o.lang, 'holder')}: ${acc.customer.fullName}`);
     doc.line(`${label(o.lang, 'account')}: ${acc.accountNumber} · ${acc.product.name}${acc.nickname ? ` · ${acc.nickname}` : ''}`);
     doc.line(`${label(o.lang, 'period')}: ${fromDay} – ${toDay}`, { gap: 8 });
-    doc.line(`${label(o.lang, 'opening')}: ${lkrText(opening)}`, { bold: true, gap: 8 });
+    doc.line(`${label(o.lang, 'opening')}: ${money(opening)}`, { bold: true, gap: 8 });
     doc.rule();
     head(doc);
     if (lines.length === 0) doc.line(label(o.lang, 'noTransactions'));
-    for (const l of lines) doc.row(cols, [l.date, l.reference, l.description, l.debit ? lkrText(l.debit).replace('LKR ', '') : '', l.credit ? lkrText(l.credit).replace('LKR ', '') : '', lkrText(l.balance).replace('LKR ', '')], { size: 8 });
+    for (const l of lines) doc.row(cols, [l.date, l.reference, l.description, l.debit ? money(l.debit).replace(`${cur} `, '') : '', l.credit ? money(l.credit).replace(`${cur} `, '') : '', money(l.balance).replace(`${cur} `, '')], { size: 8 });
     doc.rule();
-    doc.line(`${label(o.lang, 'closing')}: ${lkrText(run)}`, { bold: true });
+    doc.line(`${label(o.lang, 'closing')}: ${money(run)}`, { bold: true });
     return { buffer: await doc.finish(), filename: `${base}.pdf`, contentType: 'application/pdf' };
   }
 
@@ -211,7 +213,7 @@ export class DocumentsService {
     kv('product', a.product.name);
     kv('opened', dateText(a.openedAt));
     kv('status', a.status);
-    kv('balance', lkrText(a.ledgerAccount?.balanceMinor ?? 0n));
+    kv('balance', moneyText(a.ledgerAccount?.balanceMinor ?? 0n, a.currency));
     kv('asOf', dateText(asOf));
     kv('certRef', ref);
     await this.audit.record({ actorId: customerId, actorType: 'CUSTOMER', action: 'document.account_certificate', subjectType: 'Account', subjectId: accountId, metadata: { certificate: ref } });

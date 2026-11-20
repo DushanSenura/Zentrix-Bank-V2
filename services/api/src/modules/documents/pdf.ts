@@ -67,12 +67,14 @@ export function runsOf(s: string): { text: string; script: Script }[] {
 }
 
 /** Money for documents: "LKR 2,500.50". Integer arithmetic only. */
-export function lkrText(minor: bigint | number): string {
+export function moneyText(minor: bigint | number, currency = 'LKR'): string {
   const v = BigInt(minor);
   const neg = v < 0n;
   const a = neg ? -v : v;
-  return `${neg ? '-' : ''}LKR ${(a / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(a % 100n).toString().padStart(2, '0')}`;
+  return `${neg ? '-' : ''}${currency} ${(a / 100n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${(a % 100n).toString().padStart(2, '0')}`;
 }
+
+export const lkrText = (minor: bigint | number): string => moneyText(minor, 'LKR');
 
 export const dateText = (d: Date): string => d.toISOString().slice(0, 10);
 

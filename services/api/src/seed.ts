@@ -11,6 +11,7 @@ import { loadEnv } from './config/env';
 import { encrypt } from './security/crypto';
 import { hashSecret, pinProblem } from './security/password';
 import { DEFAULT_RATES } from './modules/deposits/deposits.service';
+import { DEFAULT_MID_MICRO } from './modules/fx/fx.service';
 import { DEFAULT_LOAN_PRODUCTS } from './modules/loans/loans.service';
 import { LedgerService } from './modules/ledger/ledger.service';
 import { PrismaService } from './common/prisma.service';
@@ -41,6 +42,10 @@ async function main() {
   // Account products (bank-configurable defaults carried over from V1: LKR 1,000 minimum opening deposit).
   await prisma.accountProduct.upsert({ where: { code: 'SAVINGS_STD' }, update: {}, create: { code: 'SAVINGS_STD', name: 'Savings Account', kind: 'SAVINGS', minOpeningMinor: 100000n, interestRateBps: 350 } });
   await prisma.accountProduct.upsert({ where: { code: 'CURRENT_STD' }, update: {}, create: { code: 'CURRENT_STD', name: 'Current Account', kind: 'CURRENT', minOpeningMinor: 100000n } });
+  // Foreign-currency accounts open with no deposit (they are funded by exchanging rupees) and start with fictional mid rates.
+  for (const [cur, name] of [['USD', 'US Dollar Account'], ['EUR', 'Euro Account'], ['GBP', 'Pound Sterling Account']] as const)
+    await prisma.accountProduct.upsert({ where: { code: `FX_${cur}` }, update: {}, create: { code: `FX_${cur}`, name, kind: 'FOREIGN_CURRENCY', currency: cur, minOpeningMinor: 0n } });
+  for (const [cur, micro] of Object.entries(DEFAULT_MID_MICRO)) await prisma.fxRate.upsert({ where: { currency: cur }, update: {}, create: { currency: cur, midRateMicro: micro } });
   // Fixed-deposit rate card (sample figures), loan products (sample) and a few fictional branches/ATMs.
   for (const r of DEFAULT_RATES) await prisma.fixedDepositRate.upsert({ where: { termMonths: r.termMonths }, update: {}, create: { termMonths: r.termMonths, rateBps: r.rateBps } });
   for (const p of DEFAULT_LOAN_PRODUCTS) await prisma.loanProduct.upsert({ where: { code: p.code }, update: {}, create: p });

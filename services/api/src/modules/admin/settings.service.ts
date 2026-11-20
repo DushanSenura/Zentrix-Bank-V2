@@ -28,6 +28,7 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'risk.newPayeeMinor', label: 'Large first payment to a new payee', group: 'Risk', type: 'int', min: 100, max: 100_000_000_000, default: 20_000_000, help: 'Minor units' },
   { key: 'risk.newDeviceMinor', label: 'Large payment soon after a new device', group: 'Risk', type: 'int', min: 100, max: 100_000_000_000, default: 10_000_000, help: 'Minor units; looks at devices added in the last 24 hours' },
   { key: 'risk.anomalyEnabled', label: 'Anomaly detection experiment', group: 'Risk', type: 'bool', default: false, help: 'Statistical experiment, not a certified control. It only raises explainable alerts for review.' },
+  { key: 'fx.spreadBps', label: 'Currency exchange spread', group: 'Exchange', type: 'int', min: 0, max: 1000, default: 150, help: 'Basis points added to the buy rate and taken off the sell rate (150 = 1.50%)' },
   { key: 'maintenance.enabled', label: 'Maintenance mode', group: 'System', type: 'bool', default: false, help: 'Customers see a maintenance notice; staff can still sign in.' },
   { key: 'maintenance.message', label: 'Maintenance message', group: 'System', type: 'string', max: 200, default: 'Zentrix Bank is being updated. Please try again shortly.' },
 ];
