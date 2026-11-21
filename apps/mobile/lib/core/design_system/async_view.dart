@@ -5,6 +5,7 @@ import '../../features/authentication/data/auth_repository.dart';
 import 'package:go_router/go_router.dart';
 
 import 'bottom_nav.dart';
+import '../responsive/adaptive.dart';
 import 'tokens.dart';
 import 'widgets.dart';
 
@@ -49,6 +50,6 @@ class ServicePage extends StatelessWidget {
         ),
         floatingActionButton: fab,
         bottomNavigationBar: navIndex == null ? null : ZxBottomNav(index: navIndex!),
-        body: ZxBackdrop(child: SafeArea(child: body)),
+        body: ZxBackdrop(child: SafeArea(child: AdaptiveContent(child: body))),
       );
 }

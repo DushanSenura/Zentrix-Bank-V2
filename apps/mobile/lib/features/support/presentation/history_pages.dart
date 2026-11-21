@@ -116,11 +116,20 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       if (h != last) { children.add(Padding(padding: const EdgeInsets.only(top: ZxSpace.sm), child: Semantics(header: true, child: Text(h, style: Theme.of(context).textTheme.titleSmall)))); last = h; }
       children.add(Semantics(
         label: '${t.description}, ${formatMinor(t.amountMinor, currency: t.currency, signed: true)}, ${_day(t.postedAt)}',
-        child: ListTile(
-          title: Text(t.description, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(t.accountLabel),
-          trailing: Text(formatMinor(t.amountMinor, currency: t.currency, signed: true), style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null)),
+        // Not a ListTile: its trailing slot cannot give way, so a big amount plus a long name overflowed on narrow screens.
+        child: InkWell(
           onTap: () => context.push('/transactions/${t.id}'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(padding: const EdgeInsets.symmetric(horizontal: ZxSpace.md, vertical: ZxSpace.sm), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(t.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(t.accountLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: context.zx.textMuted, fontSize: 13)),
+              ])),
+              const SizedBox(width: ZxSpace.sm),
+              Flexible(flex: 2, child: Text(formatMinor(t.amountMinor, currency: t.currency, signed: true), textAlign: TextAlign.end, style: TextStyle(fontWeight: FontWeight.w600, color: t.amountMinor < 0 ? Theme.of(context).colorScheme.error : null))),
+            ])),
+          ),
         ),
       ));
     }
@@ -131,7 +140,8 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
       navIndex: 3,
       title: 'Transaction history',
       actions: [IconButton(tooltip: 'Statements', icon: const Icon(Icons.description_outlined), onPressed: () => context.push('/statements'))],
-      body: Column(children: [
+      // One scrolling list for the filters and the results, so short or landscape screens never overflow.
+      body: ListView(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(ZxSpace.md, ZxSpace.md, ZxSpace.md, 0),
           child: Column(children: [
@@ -157,15 +167,14 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
               ])),
           ]),
         ),
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!), TextButton(onPressed: _load, child: const Text('Try again'))]))
-                  : _items.isEmpty
-                      ? ListView(padding: const EdgeInsets.all(ZxSpace.md), children: const [_PendingFailed(), Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Center(child: Text('No transactions match.')))])
-                      : ListView(padding: const EdgeInsets.all(ZxSpace.md), children: children),
-        ),
+        if (_loading)
+          const Padding(padding: EdgeInsets.all(ZxSpace.xl), child: Center(child: CircularProgressIndicator()))
+        else if (_error != null)
+          Padding(padding: const EdgeInsets.all(ZxSpace.lg), child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!), TextButton(onPressed: _load, child: const Text('Try again'))])))
+        else if (_items.isEmpty)
+          const Padding(padding: EdgeInsets.all(ZxSpace.md), child: Column(children: [_PendingFailed(), Padding(padding: EdgeInsets.all(ZxSpace.lg), child: Center(child: Text('No transactions match.')))]))
+        else
+          Padding(padding: const EdgeInsets.all(ZxSpace.md), child: Column(children: children)),
       ]),
     );
   }

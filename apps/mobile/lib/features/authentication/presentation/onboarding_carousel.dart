@@ -47,16 +47,23 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
                 onPageChanged: (i) => setState(() => _i = i),
                 itemBuilder: (_, i) {
                   final (icon, title, body) = _slides[i];
-                  return Padding(
-                    padding: const EdgeInsets.all(ZxSpace.lg),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      GlassCard(padding: const EdgeInsets.all(ZxSpace.xl), child: Icon(icon, size: 72, color: context.zx.primary, semanticLabel: title)),
-                      const SizedBox(height: ZxSpace.xl),
-                      Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: ZxSpace.md),
-                      Text(body, textAlign: TextAlign.center),
-                    ]),
-                  );
+                  // The artwork shrinks on short screens and the slide scrolls if the text still does not fit (large text, landscape).
+                  return LayoutBuilder(builder: (context, c) {
+                    final short = c.maxHeight < 400;
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.all(short ? ZxSpace.md : ZxSpace.lg),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: c.maxHeight - (short ? ZxSpace.md : ZxSpace.lg) * 2),
+                        child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          GlassCard(padding: EdgeInsets.all(short ? ZxSpace.md : ZxSpace.xl), child: Icon(icon, size: short ? 40 : 72, color: context.zx.primary, semanticLabel: title)),
+                          SizedBox(height: short ? ZxSpace.md : ZxSpace.xl),
+                          Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: ZxSpace.md),
+                          Text(body, textAlign: TextAlign.center),
+                        ]))),
+                      ),
+                    );
+                  });
                 },
               ),
             ),

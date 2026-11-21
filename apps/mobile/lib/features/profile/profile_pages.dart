@@ -161,7 +161,7 @@ class SettingsPage extends ConsumerWidget {
       title: 'Settings',
       body: ListView(padding: const EdgeInsets.all(ZxSpace.md), children: [
         _Section('Appearance', [
-          ListTile(title: const Text('Theme'), trailing: DropdownButton<ThemeMode>(value: s.themeMode, onChanged: (v) => n.setTheme(v ?? ThemeMode.system), items: const [DropdownMenuItem(value: ThemeMode.system, child: Text('System')), DropdownMenuItem(value: ThemeMode.light, child: Text('Light')), DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark'))])),
+          ListTile(title: const Text('Theme'), trailing: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 130), child: DropdownButton<ThemeMode>(isExpanded: true, value: s.themeMode, onChanged: (v) => n.setTheme(v ?? ThemeMode.system), items: const [DropdownMenuItem(value: ThemeMode.system, child: Text('System')), DropdownMenuItem(value: ThemeMode.light, child: Text('Light')), DropdownMenuItem(value: ThemeMode.dark, child: Text('Dark'))]))),
           const ListTile(title: Text('Language'), subtitle: Text('English. Statements can be produced in Sinhala and Tamil.'), trailing: Text('English')),
           SwitchListTile(title: const Text('Reduce motion'), subtitle: const Text('Also follows your phone’s setting'), value: s.reduceMotion, onChanged: n.setReduceMotion),
         ]),
@@ -170,7 +170,7 @@ class SettingsPage extends ConsumerWidget {
           ListTile(
             title: const Text('Lock after'),
             subtitle: const Text('Ask for your PIN after being idle or in the background'),
-            trailing: DropdownButton<int>(value: s.lockMinutes, onChanged: (v) => n.setLockMinutes(v ?? 2), items: const [DropdownMenuItem(value: 0, child: Text('Immediately')), DropdownMenuItem(value: 1, child: Text('1 minute')), DropdownMenuItem(value: 2, child: Text('2 minutes')), DropdownMenuItem(value: 5, child: Text('5 minutes')), DropdownMenuItem(value: 15, child: Text('15 minutes'))]),
+            trailing: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 140), child: DropdownButton<int>(isExpanded: true, value: s.lockMinutes, onChanged: (v) => n.setLockMinutes(v ?? 2), items: const [DropdownMenuItem(value: 0, child: Text('Immediately')), DropdownMenuItem(value: 1, child: Text('1 minute')), DropdownMenuItem(value: 2, child: Text('2 minutes')), DropdownMenuItem(value: 5, child: Text('5 minutes')), DropdownMenuItem(value: 15, child: Text('15 minutes'))])),
           ),
           ListTile(title: const Text('Security centre'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/security')),
           ListTile(title: const Text('Transfer limits'), trailing: const Icon(Icons.chevron_right), onTap: () => context.push('/security/limits')),

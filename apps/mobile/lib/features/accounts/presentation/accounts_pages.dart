@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design_system/bottom_nav.dart';
+import '../../../core/responsive/adaptive.dart';
 import '../../../core/utils/no_retry.dart';
 import '../../../core/design_system/tokens.dart';
 import '../../support/data/support_repository.dart';
@@ -152,8 +153,7 @@ class _QuickActions extends StatelessWidget {
   const _QuickActions();
   @override
   Widget build(BuildContext context) {
-    Widget action(IconData i, String label, String route) => Expanded(
-          child: Semantics(
+    Widget action(IconData i, String label, String route) => Semantics(
             button: true,
             label: label,
             child: InkWell(
@@ -165,9 +165,9 @@ class _QuickActions extends StatelessWidget {
                 Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
               ])),
             ),
-          ),
-        );
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          );
+    // Three per row on narrow phones, five across once there is room; rows grow with the text size.
+    return AdaptiveWrapGrid(columnsFor: (w) => w >= 340 ? 5 : 3, spacing: 4, runSpacing: 4, children: [
       action(Icons.swap_horiz, 'Transfer', '/payments/transfer'),
       action(Icons.receipt_outlined, 'Pay bills', '/payments/bills'),
       action(Icons.qr_code_scanner, 'Scan', '/payments/scan'),
@@ -227,12 +227,14 @@ class _AccountCard extends StatelessWidget {
         child: GlassCard(blur: false, child: Row(children: [
           Icon(a.kind == 'CURRENT' ? Icons.account_balance_outlined : Icons.savings_outlined, color: context.zx.primary),
           const SizedBox(width: ZxSpace.md),
+          // The balance sits under the name rather than beside it, so a long name or a large balance never competes for width.
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(a.title, style: const TextStyle(fontWeight: FontWeight.w700)),
             Text(a.maskedNumber, style: TextStyle(color: context.zx.textMuted)),
             if (a.status != 'ACTIVE') Text(a.status[0] + a.status.substring(1).toLowerCase(), style: TextStyle(color: context.zx.warning, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 2),
+            AmountText(a.balanceMinor, currency: a.currency, style: const TextStyle(fontWeight: FontWeight.w700)),
           ])),
-          AmountText(a.balanceMinor, currency: a.currency, style: const TextStyle(fontWeight: FontWeight.w700)),
         ])),
       ),
     );

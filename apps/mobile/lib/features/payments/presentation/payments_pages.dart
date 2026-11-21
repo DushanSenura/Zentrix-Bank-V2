@@ -489,7 +489,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final feed = ref.watch(notificationsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Notifications'), actions: [
-        TextButton(onPressed: () async { await ref.read(paymentsRepositoryProvider).markAllRead(); ref.invalidate(notificationsProvider); }, child: const Text('Mark all read')),
+        IconButton(tooltip: 'Mark all read', icon: const Icon(Icons.done_all), onPressed: () async { await ref.read(paymentsRepositoryProvider).markAllRead(); ref.invalidate(notificationsProvider); }),
       ]),
       body: ZxBackdrop(child: SafeArea(child: feed.when(
         loading: () => const Center(child: CircularProgressIndicator()),
