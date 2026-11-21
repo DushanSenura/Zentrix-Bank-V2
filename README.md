@@ -181,7 +181,7 @@ docs/              Architecture, security, testing, deployment, release, UI and 
 ```
 
 ## API
-Base path `/api/v1`; interactive Swagger UI at `/api/docs` when the API is running. Customer routes require a bearer token from `POST /auth/login`; staff routes name the permission they need and the guard denies anything not explicitly allowed. A route-matrix test fails the build if a route is added without a declared access rule.
+Base path `/api/v1`; interactive Swagger UI at `/api/docs` (disabled when `APP_ENV=production`). Customer routes require a bearer token from `POST /auth/login`; staff routes name the permission they need and the guard denies anything not explicitly allowed. A route-matrix test fails the build if a route is added without a declared access rule.
 
 | Group | Examples |
 | --- | --- |
